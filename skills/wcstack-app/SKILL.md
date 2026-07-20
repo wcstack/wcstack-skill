@@ -2,7 +2,7 @@
 name: wcstack-app
 description: Build web apps, SPAs, and demo pages with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components such as wcs-fetch / wcs-storage / wcs-ws). Follows the project's standards-first, zero-config, buildless principles — one-line CDN loading, then state design → data-wcs binding → I/O node wiring → routing, with exact syntax. Use when the user asks (in any language) to build something with wcstack, wcs-state, data-wcs, wcs-fetch or other wcs-* tags, or a signals-based app (e.g. "build an app with wcstack", 「wcstackでアプリを作って」「wcs-fetchで〜して」). Do NOT use for generic Web Components / Custom Elements questions unrelated to wcstack, for other frameworks (React / Vue / Lit / NoJS), or for developing or modifying the wcstack packages themselves.
 metadata:
-  wcstack-version: "1.21.6"
+  wcstack-version: "1.21.7"
 ---
 
 # Building apps with wcstack
@@ -11,7 +11,7 @@ metadata:
 
 wcstack is a family of "standards-first, zero-config, buildless" Web Components packages. An app is correctly a **single HTML file + one-line CDN loads** — do not introduce bundlers, build steps, or npm install unless the user explicitly asks for them.
 
-Content verified against **wcstack v1.21.6** (READMEs, examples, and source as of 2026-07). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
+Content verified against **wcstack v1.21.7** (READMEs, examples, and source as of 2026-07). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
 
 Generated-code accuracy lives in the exact syntax. **This file holds only the workflow, a cheat sheet, and the failure-mode matrix**; full syntax is split into references/ next to this file. Read the matching reference before entering each phase:
 
@@ -58,7 +58,7 @@ Read the references, then write. Four wiring forms between state and I/O nodes:
 3. Command-token (state → element): `data-wcs="command.fetch: $command.refresh"` + `$commandTokens`
 4. Event-token (element → state): `data-wcs="eventToken.value: responded"` + `$eventTokens` + `$on`
 
-Positive rules with no failure-mode row below: use `<wcs-link to="...">` instead of raw `<a>` (basename handling + `active` class); wire live handles (MediaStream etc.) element-to-element via `eventToken` → `$command.attachStream`, never through state; `trigger` is a momentary input property fired by writing `false`→`true`, not a command.
+Positive rules with no failure-mode row below: use `<wcs-link to="...">` instead of raw `<a>` (basename handling + `active` class); wire live handles (MediaStream etc.) element-to-element via `eventToken` → `$command.attachStream`, never through state; `trigger` is a momentary input property, not a command — any truthy write fires (no edge detection, and it bypasses `manual`), so seed its slot with `false`. Exception: on `wcs-debounce`/`wcs-throttle`, `trigger` IS a command.
 
 ### 5. Server and verification
 
@@ -118,6 +118,9 @@ Self-review every generated app against this table:
 | Assuming `wcs-fetch:response` means success | Fires on HTTP/network errors too | Check `event.detail.status` in `$on` |
 | Storage slot seeded with `""` / `null` | Initial write-back clobbers the saved value | Seed the bound slot with `undefined` (load-before-bind) |
 | Seeding truthy initials into output-only properties | Element authority overwrites them | Seed real initial values (`null` / `false`) |
+| Seeding `true` into a `trigger`-bound slot | Fires/starts at bind, even with `manual` (no edge detection) | Seed `false`; write `true` to fire |
+| `send` / `post` before connected / opened / started | Dropped silently into `error` — not queued, no throw | Gate on `connected` / `running`, and bind `error` |
+| Changing an attribute after connect to reconfigure | Most inputs are frozen (connect-time or next-command read) — change silently ignored | Check the catalog's live/frozen notes; re-invoke the command or replace the element |
 | Writing `undefined` to an element input | Write is skipped silently (write-skip) | Assign `null` to clear |
 | Missing trailing colon on `else` | Parse fails | `data-wcs="else:"` |
 | Mixing `@wcstack/signals` and `@wcstack/signals/dom` on a CDN page | Two reactive cores, broken seams | Import everything from the single `/dom` entry |
