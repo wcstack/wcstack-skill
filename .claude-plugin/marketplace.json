@@ -1,0 +1,11 @@
+{
+  "name": "wcstack",
+  "owner": { "name": "wcstack" },
+  "plugins": [
+    {
+      "name": "wcstack-app",
+      "source": "./",
+      "description": "Agent Skill for building web apps with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components) using exact data-wcs syntax."
+    }
+  ]
+}
