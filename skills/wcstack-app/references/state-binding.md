@@ -95,8 +95,8 @@ In addition, any DOM property name can be used (e.g. `disabled: createFetch.load
 | `#prevent` | `event.preventDefault()` |
 | `#stop` | `event.stopPropagation()` |
 | `#onchange` | Two-way binding on the `change` event instead of `input` |
-| `#init=state\|element\|auto\|none` | Binding authority (direction of initial sync for wcBindable elements) |
-| `#sync=call\|connect` | Snapshot read timing under element authority |
+| `#init=state\|element\|auto\|none` | Binding authority for wcBindable elements. v1.22+: authority decides ONLY who wins the initial sync — two-way members flow both ways afterwards (in 1.21.x, `element`/`auto`/`none` suppressed state→element for the binding's whole lifetime). `#init=element` is the declarative load-before-bind form: `<wcs-storage data-wcs="value#init=element: todos">` keeps the persisted value at bind, then writes back normally |
+| `#sync=call\|connect` | Snapshot read timing under element authority (`connect` also holds state→element writes until the initial conflict resolves) |
 
 ### Two-way binding (auto-enabled)
 
@@ -310,7 +310,7 @@ export default {
 ## 10. Other Features
 
 - **Lifecycle**: On the state object: `$connectedCallback` (async allowed, awaited, runs on every reconnection), `$disconnectedCallback` (sync only), `$updatedCallback(paths, indexesListByPath)` (async allowed, not awaited). On the Web Component side: `async $stateReadyCallback(stateProp)`.
-- **$streams**: `$streams: { name: { args?, source, fold?, initial? } }` — source is `(args, signal) => AsyncIterable|ReadableStream|Promise<same>`, honoring AbortSignal is mandatory, `initial` is required when `fold` is specified. status/error: `$streamStatus.<name>` (`"idle"|"active"|"done"|"error"`) / `$streamError.<name>`. args are synchronous, cannot read wildcards, self-dependency forbidden. Infinite streams require a bounded fold.
+- **$streams**: `$streams: { name: { args?, source, fold?, initial? } }` — source is `(args, signal) => AsyncIterable|ReadableStream|Promise<same>`, honoring AbortSignal is mandatory, `initial` is required when `fold` is specified. status/error: `$streamStatus.<name>` (`"idle"|"active"|"done"|"error"`) / `$streamError.<name>`. args are synchronous, cannot read wildcards, self-dependency forbidden. Infinite streams require a bounded fold. **Bridging callback APIs (EventSource / WebSocket / DOM events) — v1.22+ canonical form**: wrap in a `ReadableStream` (enqueue in `start`, release the resource in `cancel()`); the runtime cancels the reader on restart/dispose, so the AbortSignal contract is satisfied automatically. Hand-written async generators must watch `signal` themselves — a generator parked on `await` cannot be force-released from outside.
 - **Web Component**: `<wcs-state bind-component="state">` inside the shadowRoot; from the host `data-wcs="state.message: user.name"`. In Light DOM the `name` attribute is required + `@name` references are required (namespace collisions otherwise).
 - **DCC**: `<my-counter data-wc-definition><template shadowrootmode="open">...<wcs-state>...` + `$bindables: ["count"]` defines a custom element with no JS class.
 - **Configuration**: `bootstrapState({ locale, debug, enableMustache, bindAttributeName, tagNames: { state }, enableDirectionalInitialSync, enablePropagationContext, enableContractAnalyzer })`.
@@ -327,7 +327,7 @@ export default {
 6. The `eventToken.` key is the wcBindable **property name**, not the raw DOM event name.
 7. `wcs-fetch:response` (the value event) also fires on HTTP/network errors — check the status in `$on`.
 8. Do not seed convenient initial values into output-only wcBindable members (the element's real initial value replaces them).
-9. `$streams` sources must not ignore AbortSignal.
+9. `$streams` sources must not ignore AbortSignal (ReadableStream sources satisfy this automatically via `cancel()`; only hand-written async iterables must watch `signal`).
 10. Do not forget the trailing colon on `else:`.
 11. Duplicate entries in `$commandTokens`/`$eventTokens` and undeclared keys in `$on` are initialization-time errors. Accessing an undeclared token (`this.$command.typo`) yields `undefined`.
 12. There is no custom filter registration API — do transformations the 40 built-ins cannot express in a getter.

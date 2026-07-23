@@ -2,7 +2,7 @@
 name: wcstack-app
 description: Build web apps, SPAs, and demo pages with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components such as wcs-fetch / wcs-storage / wcs-ws). Follows the project's standards-first, zero-config, buildless principles — one-line CDN loading, then state design → data-wcs binding → I/O node wiring → routing, with exact syntax. Use when the user asks (in any language) to build something with wcstack, wcs-state, data-wcs, wcs-fetch or other wcs-* tags, or a signals-based app (e.g. "build an app with wcstack", 「wcstackでアプリを作って」「wcs-fetchで〜して」). Do NOT use for generic Web Components / Custom Elements questions unrelated to wcstack, for other frameworks (React / Vue / Lit / NoJS), or for developing or modifying the wcstack packages themselves.
 metadata:
-  wcstack-version: "1.21.7"
+  wcstack-version: "1.22.0"
 ---
 
 # Building apps with wcstack
@@ -11,7 +11,7 @@ metadata:
 
 wcstack is a family of "standards-first, zero-config, buildless" Web Components packages. An app is correctly a **single HTML file + one-line CDN loads** — do not introduce bundlers, build steps, or npm install unless the user explicitly asks for them.
 
-Content verified against **wcstack v1.21.7** (READMEs, examples, and source as of 2026-07). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
+Content verified against **wcstack v1.22.0** (READMEs, examples, and source as of 2026-07). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
 
 Generated-code accuracy lives in the exact syntax. **This file holds only the workflow, a cheat sheet, and the failure-mode matrix**; full syntax is split into references/ next to this file. Read the matching reference before entering each phase:
 
@@ -32,7 +32,9 @@ Generated-code accuracy lives in the exact syntax. **This file holds only the wo
 ### 2. HTML scaffold (CDN loading rules)
 
 ```html
-<!-- state family: one /auto line per package. I/O nodes BEFORE state -->
+<!-- state family: one /auto line per package. Order among wcstack /auto scripts
+     does not matter (deferred module execution; state waits via whenDefined) —
+     EXCEPT @wcstack/devtools/auto, which must come before state/auto. -->
 <script type="module" src="https://esm.run/@wcstack/fetch/auto"></script>
 <script type="module" src="https://esm.run/@wcstack/router/auto"></script>
 <script type="module" src="https://esm.run/@wcstack/state/auto"></script>
@@ -62,6 +64,7 @@ Positive rules with no failure-mode row below: use `<wcs-link to="...">` instead
 
 ### 5. Server and verification
 
+- **Lint first (v1.22+)**: `wcs-validate` machine-checks the generated HTML against the real contracts — `data-wcs` syntax / filters / state paths, wcs-* tag members (`command.` / `eventToken.` keys included, with typo suggestions), `trigger` slots seeded `true`, storage seed clobber, missing `<base href>`, signals dual-entry. Stable `wcs/*` codes; messages ja/en (`--lang=en`; default follows the environment); exit 1 = errors. It is NOT on npm — run it from a wcstack monorepo checkout (one-time build: `cd packages/vscode-wcs && npm install && npm run build`), then `node <wcstack>/packages/vscode-wcs/dist/cli.cjs [--lang=en] index.html`. In VS Code, the WcStack IntelliSense extension shows the same diagnostics (same codes) inline; if neither is available, skip to the matrix below.
 - A static single page needs no server (recommend a tiny server if it fetches).
 - An SPA needs the fallback "every extensionless non-API GET returns index.html" (implementation in router-and-scaffold.md §7).
 - After finishing, do a minimal run in a browser or via a tiny server. For working references, see `examples/` (multi-package demos) and `packages/*/examples/` (single-package demos) in the wcstack repo.
@@ -101,7 +104,7 @@ Full syntax (modifiers, 40 built-in filters, nested loops, `$getAll` / `$resolve
 
 ## Silent-failure matrix (these break without an error)
 
-Self-review every generated app against this table:
+Run `wcs-validate` first when available (§5) — it machine-checks most rows. Then self-review against this table:
 
 | Mistake / combination | Symptom | Correct form |
 |---|---|---|
@@ -116,7 +119,7 @@ Self-review every generated app against this table:
 | `data-wcs` inside router-stamped content | Bindings never collected (state scans the DOM at bind time) | Put bound templates under body-level `<template data-wcs="if: ...">`; routes hold `<wcs-head>` + static content only |
 | SPA without `<base href="/">` | Deep links break (basename misderived) | Add `<base href="/">` to `<head>` |
 | Assuming `wcs-fetch:response` means success | Fires on HTTP/network errors too | Check `event.detail.status` in `$on` |
-| Storage slot seeded with `""` / `null` | Initial write-back clobbers the saved value | Seed the bound slot with `undefined` (load-before-bind) |
+| Storage slot seeded with `""` / `null` | Initial write-back clobbers the saved value | Seed the bound slot with `undefined`, or bind `value#init=element: slot` (v1.22+: the element's loaded value wins the initial sync, then normal two-way resumes) |
 | Seeding truthy initials into output-only properties | Element authority overwrites them | Seed real initial values (`null` / `false`) |
 | Seeding `true` into a `trigger`-bound slot | Fires/starts at bind, even with `manual` (no edge detection) | Seed `false`; write `true` to fire |
 | `send` / `post` before connected / opened / started | Dropped silently into `error` — not queued, no throw | Gate on `connected` / `running`, and bind `error` |

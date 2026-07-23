@@ -1,10 +1,10 @@
 # wcstack I/O Node Catalog + signals Quick Reference
 
-Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, and `examples/signals-live-search`. All 35 tags are cross-checked against source at v1.21.7 — attribute spellings, properties, commands, and the timing notes below are source-verified.
+Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, and `examples/signals-live-search`. All 35 tags are cross-checked against source at v1.21.7 (contracts unchanged in v1.22.0) — attribute spellings, properties, commands, and the timing notes below are source-verified.
 
 ## 0. Common Conventions (all I/O nodes)
 
-- **One-line CDN**: `<script type="module" src="https://esm.run/@wcstack/<pkg>/auto"></script>` (alongside `@wcstack/state/auto`; load the I/O side first)
+- **One-line CDN**: `<script type="module" src="https://esm.run/@wcstack/<pkg>/auto"></script>` alongside `@wcstack/state/auto`. Load order does not matter (deferred module execution; state waits via `whenDefined`) — the one exception is `@wcstack/devtools/auto`, which must load BEFORE state/auto (live wiring-ledger capture)
 - **wc-bindable**: each tag declares via `static wcBindable` its **properties** (observable outputs; state subscribes) / **inputs** (write surface; attributes are kebab-case mirrors) / **commands** (invocable methods).
 - **Wiring**: output binding `data-wcs="value: users"` / command-token `data-wcs="command.<method>: $command.<name>"` / event-token `data-wcs="eventToken.<property>: <name>"` / spread `data-wcs="...: slot"`.
 - **Common idioms**:
@@ -71,6 +71,7 @@ Sources: each package's README (ja preferred) plus the `static wcBindable` / `st
 <wcs-storage key="username" data-wcs="value: username"></wcs-storage>
 <input data-wcs="value: username">
 ```
+v1.22+ declarative alternative: `data-wcs="value#init=element: username"` — the element's persisted value wins the initial sync regardless of the slot's seed, then normal two-way write-back resumes.
 For object sub-property changes, bind a getter containing `$trackDependency` to `trigger` and persist with `manual` + save.
 
 **websocket** — receive via `message`; to send, just write a value to `send`:
