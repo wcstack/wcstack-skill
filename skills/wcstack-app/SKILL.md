@@ -2,7 +2,7 @@
 name: wcstack-app
 description: Build web apps, SPAs, and demo pages with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components such as wcs-fetch / wcs-storage / wcs-ws). Follows the project's standards-first, zero-config, buildless principles — one-line CDN loading, then state design → data-wcs binding → I/O node wiring → routing, with exact syntax. Use when the user asks (in any language) to build something with wcstack, wcs-state, data-wcs, wcs-fetch or other wcs-* tags, or a signals-based app (e.g. "build an app with wcstack", 「wcstackでアプリを作って」「wcs-fetchで〜して」). Do NOT use for generic Web Components / Custom Elements questions unrelated to wcstack, for other frameworks (React / Vue / Lit / NoJS), or for developing or modifying the wcstack packages themselves.
 metadata:
-  wcstack-version: "1.22.5"
+  wcstack-version: "1.22.6"
 ---
 
 # Building apps with wcstack
@@ -11,7 +11,7 @@ metadata:
 
 wcstack is a family of "standards-first, zero-config, buildless" Web Components packages. An app is correctly a **single HTML file + one-line CDN loads** — do not introduce bundlers, build steps, or npm install unless the user explicitly asks for them.
 
-Content verified against **wcstack v1.22.5** (READMEs, examples, and source as of 2026-07). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
+Content verified against **wcstack v1.22.6** (READMEs, examples, and source as of 2026-07). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
 
 Generated-code accuracy lives in the exact syntax. **This file holds only the workflow, a cheat sheet, and the failure-mode matrix**; full syntax is split into references/ next to this file. Read the matching reference before entering each phase:
 
@@ -64,7 +64,20 @@ Positive rules with no failure-mode row below: use `<wcs-link to="...">` instead
 
 ### 5. Server and verification
 
-- **Lint first**: run `npx @wcstack/lint index.html` on every generated page and iterate until exit code 0. It machine-checks the real contracts — `data-wcs` syntax / filters / state paths, wcs-* tag members (`command.` / `eventToken.` keys included, with typo suggestions), `trigger` slots seeded `true`, storage seed clobber, missing `<base href>`, signals dual-entry. Stable `wcs/*` codes; messages follow the environment locale (`--lang=ja|en` to force); `--errors-only` for CI gates. In VS Code, the WcStack IntelliSense extension shows the same diagnostics (same codes) inline.
+- **Lint every generated HTML file before browser testing**. During authoring, keep warnings visible:
+
+  ```bash
+  npx @wcstack/lint index.html
+  ```
+
+  Pass every generated HTML file and `wcstack.manifest.json` sidecar as separate arguments when the app has more than one file. Read the stable `wcs/*` diagnostic codes and `source:line:col` ranges, fix all errors and actionable warnings, then rerun. The CLI machine-checks the real contracts — `data-wcs` syntax / filters / state paths, wcs-* tag members (`command.` / `eventToken.` keys included, with typo suggestions), non-reactive nested/array mutations, `trigger` slots seeded `true`, storage seed clobber, missing `<base href>`, and signals dual-entry.
+- **Use the quiet form only as the final CI gate**:
+
+  ```bash
+  npx @wcstack/lint --errors-only index.html
+  ```
+
+  Append other HTML files and `wcstack.manifest.json` only when they exist. `--errors-only` (alias `--quiet`) hides warning/info lines but does not change their counts or the exit code. Exit `0` means no error-severity diagnostics (warnings may still exist), `1` means one or more errors, and `2` means invalid usage or a file-read failure. Messages follow the environment locale; use `--lang=ja` or `--lang=en` to force it. In VS Code, the WcStack IntelliSense extension shows the same diagnostics and ranges inline.
 - A static single page needs no server (recommend a tiny server if it fetches).
 - An SPA needs the fallback "every extensionless non-API GET returns index.html" (implementation in router-and-scaffold.md §7).
 - After finishing, do a minimal run in a browser or via a tiny server. For working references, see `examples/` (multi-package demos) and `packages/*/examples/` (single-package demos) in the wcstack repo.
@@ -104,12 +117,12 @@ Full syntax (modifiers, 40 built-in filters, nested loops, `$getAll` / `$resolve
 
 ## Silent-failure matrix (these break without an error)
 
-Run `npx @wcstack/lint` first (§5) — it machine-checks most rows. Then self-review against this table:
+Run `npx @wcstack/lint` without `--errors-only` first (§5), fix its actionable warnings, then self-review against this table:
 
 | Mistake / combination | Symptom | Correct form |
 |---|---|---|
-| `this.user.name = v` (property mutation) | Not detected, DOM stale | Path assignment: `this["user.name"] = v` |
-| `push` / `splice` / `sort` on arrays | Not detected | Reassign a new array: `toSpliced` / `concat` / `filter` / `toSorted` |
+| `this.user.name = v` (nested property mutation) | DOM stays stale; lint reports `wcs/nested-assign` | Path assignment: `this["user.name"] = v` |
+| `push` / `splice` / `sort` or `this.items[0] = v` on arrays | DOM stays stale; lint reports `wcs/array-mutation` or `wcs/array-index-assign` | Reassign a new array (`toSpliced` / `concat` / `filter` / `toSorted`), or use `this["items.0"] = v` / `this.items = this.items.with(0, v)` |
 | `for:` bound to a null / non-array path | List breaks | Derived getter with `?? []` |
 | Arguments on `onclick:` | Cannot pass arguments | Zero-arg wrapper method per variant |
 | Bare name on command binding (`command.fetch: reload`) | Never fires | `$command.reload` (the `$command.` prefix is mandatory) |

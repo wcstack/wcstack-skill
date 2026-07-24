@@ -122,7 +122,7 @@ In addition, any DOM property name can be used (e.g. `disabled: createFetch.load
 </template>
 ```
 
-- No key attribute needed (value-based diffing). Arrays must **always be reassigned as new arrays** (`concat`/`toSpliced`/`filter`/`toSorted`/`toReversed`/`with`). `push`/`splice`/`sort` are not detected.
+- No key attribute needed (value-based diffing). Arrays must **always be reassigned as new arrays** (`concat`/`toSpliced`/`filter`/`toSorted`/`toReversed`/`with`). The runtime does not observe `push`/`splice`/`sort` or direct index writes such as `this.items[0] = value`; v1.22.2+ lint reports these as `wcs/array-mutation` / `wcs/array-index-assign`.
 - Dot shorthand: `.name` → `users.*.name`, `.` → `users.*` (element value for primitive arrays); `.name|uc` and `.name@state` also work.
 - `{{ .name }}` also works inside Mustache.
 
@@ -188,7 +188,7 @@ export default {
 
 ```javascript
 this["user.name"] = "Bob";   // ✅ path assignment → DOM update
-this.user.name = "Bob";      // ❌ not detected
+this.user.name = "Bob";      // ❌ runtime ignores it; lint warns
 ```
 
 ## 7. Filters (fixed at 40 built-ins; no custom registration API)
@@ -319,8 +319,8 @@ export default {
 
 ## Pitfall Checklist
 
-1. `this.user.name = "Bob"` is not detected — always `this["user.name"] = "Bob"`.
-2. Destructive methods like `push`/`splice`/`sort` are not detected — reassign a new array.
+1. The runtime does not observe `this.user.name = "Bob"` — always use `this["user.name"] = "Bob"`; lint reports `wcs/nested-assign`.
+2. The runtime does not observe destructive array methods or direct index assignment — reassign a new array, use `this["items.0"] = value`, or use `this.items = this.items.with(0, value)`; lint reports `wcs/array-mutation` / `wcs/array-index-assign`.
 3. `onclick:` cannot take arguments — use zero-argument wrapper methods.
 4. The `for:` path must be an array — while the fetch `value` is null, interpose a `?? []` derived getter.
 5. Bare names (`fetchUsers`) on the command binding right side are not allowed — `$command.fetchUsers` is required.
