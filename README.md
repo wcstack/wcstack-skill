@@ -38,7 +38,7 @@ Copy `skills/wcstack-app/` into:
 
 ## Versioning
 
-The plugin version tracks the wcstack release the content was last verified against (currently **1.22.1**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
+The plugin version tracks the wcstack release the content was last verified against (currently **1.22.2**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
 
 ## Ground truth & contributions
 

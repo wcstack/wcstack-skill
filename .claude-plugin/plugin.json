@@ -1,7 +1,7 @@
 {
   "name": "wcstack-app",
   "displayName": "wcstack App Builder",
-  "version": "1.22.1",
+  "version": "1.22.2",
   "description": "Agent Skill that teaches AI assistants to build web apps with wcstack — @wcstack/state, router, signals, and the wcs-* I/O node components — using exact data-wcs syntax.",
   "author": { "name": "wcstack" },
   "homepage": "https://github.com/wcstack/wcstack",

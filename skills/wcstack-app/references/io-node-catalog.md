@@ -1,6 +1,6 @@
 # wcstack I/O Node Catalog + signals Quick Reference
 
-Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, and `examples/signals-live-search`. All 35 tags are cross-checked against source at v1.21.7 (contracts unchanged through v1.22.1) — attribute spellings, properties, commands, and the timing notes below are source-verified.
+Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, and `examples/signals-live-search`. All 35 tags are cross-checked against source at v1.21.7 (contracts unchanged through v1.22.2) — attribute spellings, properties, commands, and the timing notes below are source-verified.
 
 ## 0. Common Conventions (all I/O nodes)
 
