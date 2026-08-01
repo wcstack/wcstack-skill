@@ -38,11 +38,11 @@ Copy `skills/wcstack-app/` into:
 
 ## Versioning
 
-The plugin version tracks the wcstack release the content was last verified against (currently **1.22.6**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
+The plugin version tracks the wcstack release the content was last verified against (currently **1.23.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
 
 ## Ground truth & contributions
 
-The [wcstack monorepo](https://github.com/wcstack/wcstack) (package READMEs, `examples/`, and source) is the ground truth. When wcstack protocols change — `data-wcs` syntax, `wc-bindable` / command-token / event-token, router attributes — the references here must be updated to match. PRs that fix drift against a released wcstack version are welcome.
+The [wcstack monorepo](https://github.com/wcstack/wcstack) (package READMEs, `examples/`, `docs/`, and source) is the ground truth; [wcstack.github.io](https://wcstack.github.io) is the project landing page. When wcstack protocols change — `data-wcs` syntax, `wc-bindable` / command-token / event-token, router attributes — the references here must be updated to match. PRs that fix drift against a released wcstack version are welcome.
 
 ## License
 

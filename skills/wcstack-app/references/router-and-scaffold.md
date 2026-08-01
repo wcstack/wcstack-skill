@@ -12,7 +12,7 @@ Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, roo
 <script type="module" src="https://esm.run/@wcstack/state/auto"></script>
 ```
 
-`/auto` is a zero-config bootstrap that only performs registration. Best practice is to list I/O node packages before state (not a hard requirement, since state defers via whenDefined).
+`/auto` is a zero-config bootstrap that only performs registration. **List every I/O node package (and `@wcstack/devtools/auto`) before `@wcstack/state/auto`** — module scripts run in document order, so this guarantees the elements are defined before state binds. Property/spread bindings would survive a late definition (deferred via `whenDefined`), but a **command-token emit is never replayed**, so an emit fired while an element is still undefined is silently dropped.
 
 ### Basic router structure
 
@@ -268,9 +268,11 @@ export default class UiButton extends HTMLElement {
   <base href="/">
   <title>wcstack: router + state + fetch demo</title>
   <style>/* style active links via a.active */</style>
-  <script type="module" src="https://esm.run/@wcstack/state/auto"></script>
+  <!-- I/O nodes before state: module scripts execute in document order, so every
+       element is defined before state binds to it (§9-4). -->
   <script type="module" src="https://esm.run/@wcstack/fetch/auto"></script>
   <script type="module" src="https://esm.run/@wcstack/router/auto"></script>
+  <script type="module" src="https://esm.run/@wcstack/state/auto"></script>
 </head>
 <body>
 
@@ -380,7 +382,7 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 1. **Deep links break without `<base href="/">`** (the basename is mis-derived from `document.baseURI`).
 2. **The server needs a SPA fallback** — without it, reloads and direct links 404.
 3. **Writing `data-wcs` on nodes stamped by the router is not observed by state** — state only collects the DOM present at bind time. Put data bindings in `<template data-wcs="if:">` directly under body.
-4. Script order — best practice is to list I/O node packages before `@wcstack/state`.
+4. **Script order — I/O node packages must come before `@wcstack/state`.** State last closes the window in which a `$command.x.emit()` reaches zero subscribers (command tokens are not replayed). Where the order is out of your hands, gate the emitting control on `<wcs-defined timeout>`'s `pending` output rather than awaiting `customElements.whenDefined()` (which never rejects).
 5. In Light DOM layouts, elements with a `slot` attribute are only effective as direct children of `<wcs-layout>`.
 6. A type mismatch is not an error but "no match" — `/products/abc` passes through `:productId(int)` and falls to the fallback.
 7. Relative paths cannot be written on top-level routes. Nested routes use relative paths.

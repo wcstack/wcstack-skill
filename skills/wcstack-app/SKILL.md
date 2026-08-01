@@ -2,7 +2,7 @@
 name: wcstack-app
 description: Build web apps, SPAs, and demo pages with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components such as wcs-fetch / wcs-storage / wcs-ws). Follows the project's standards-first, zero-config, buildless principles — one-line CDN loading, then state design → data-wcs binding → I/O node wiring → routing, with exact syntax. Use when the user asks (in any language) to build something with wcstack, wcs-state, data-wcs, wcs-fetch or other wcs-* tags, or a signals-based app (e.g. "build an app with wcstack", 「wcstackでアプリを作って」「wcs-fetchで〜して」). Do NOT use for generic Web Components / Custom Elements questions unrelated to wcstack, for other frameworks (React / Vue / Lit / NoJS), or for developing or modifying the wcstack packages themselves.
 metadata:
-  wcstack-version: "1.22.6"
+  wcstack-version: "1.23.0"
 ---
 
 # Building apps with wcstack
@@ -11,7 +11,7 @@ metadata:
 
 wcstack is a family of "standards-first, zero-config, buildless" Web Components packages. An app is correctly a **single HTML file + one-line CDN loads** — do not introduce bundlers, build steps, or npm install unless the user explicitly asks for them.
 
-Content verified against **wcstack v1.22.6** (READMEs, examples, and source as of 2026-07). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
+Content verified against **wcstack v1.23.0** (READMEs, examples, and source as of 2026-07). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
 
 Generated-code accuracy lives in the exact syntax. **This file holds only the workflow, a cheat sheet, and the failure-mode matrix**; full syntax is split into references/ next to this file. Read the matching reference before entering each phase:
 
@@ -26,22 +26,34 @@ Generated-code accuracy lives in the exact syntax. **This file holds only the wo
 ### 1. Pick the stack (state vs signals)
 
 - **`@wcstack/state` (default)** — UI and state connected through `data-wcs` path strings in HTML; no reactive primitives appear in JS. Forms, lists, CRUD, and general apps go here.
-- **`@wcstack/signals`** — write `signal()` / `computed()` / `effect()` / `h()` directly in JS. Choose it when the user wants no DSL, logic-heavy code, or typed signals. It has no deep path tracking (that is state's job).
+- **`@wcstack/signals`** — write `signal()` / `computed()` / `effect()` / `h()` directly in JS. Choose it when the user wants no DSL, logic-heavy code, or typed signals. It has no deep path tracking (that is state's job). When the app owns its I/O nodes, reach for `mountNode(tag)` (v1.23+) or bind a `XxxCore` directly instead of `whenDefined` + `bindNode` — see the decision table in `references/io-node-catalog.md` §3.
 - The two **coexist** (not rivals), but pick one per app as a rule.
 
 ### 2. HTML scaffold (CDN loading rules)
 
 ```html
-<!-- state family: one /auto line per package. Order among wcstack /auto scripts
-     does not matter (deferred module execution; state waits via whenDefined) —
-     EXCEPT @wcstack/devtools/auto, which must come before state/auto. -->
+<!-- state family: one /auto line per package. @wcstack/state/auto goes LAST —
+     module scripts execute in document order, so every wcs-* element is defined
+     before state wires anything to it. -->
 <script type="module" src="https://esm.run/@wcstack/fetch/auto"></script>
 <script type="module" src="https://esm.run/@wcstack/router/auto"></script>
 <script type="module" src="https://esm.run/@wcstack/state/auto"></script>
 ```
 
-- signals apps import **only from the single `@wcstack/signals/dom` entry** (mixing `.` and `.dom` on a CDN page duplicates the reactive core and breaks reactivity at the seam).
+- **State loads last — this is a real rule, not tidiness.** A property/spread binding on a not-yet-defined element is deferred via `customElements.whenDefined` and re-applied with the latest value, so nothing is lost there. **A command-token emit is never replayed**: its subscription is deferred the same way, so if state is wired first and a slow (or failed) CDN fetch leaves an I/O element undefined, a click that fires `$command.x.emit()` inside that window reaches zero subscribers and is silently dropped. Loading state last closes the window. `@wcstack/devtools/auto`, if used, goes before state too — that one lint enforces as `wcs/script-order`; the I/O-node case is not lint-checked, so it is on you.
+- **When you cannot control the order** — a snippet pasted into a larger page, or tags arriving via `@wcstack/autoloader` — gate the emitting control with `<wcs-defined>` (load `@wcstack/defined/auto` too):
+
+  ```html
+  <wcs-defined tags="wcs-tilt,wcs-accelerometer" timeout="5000"
+    data-wcs="defined: sensorsReady; pending: sensorsPending; missing: sensorsMissing"></wcs-defined>
+  <button data-wcs="onclick: startGame; disabled: sensorsResolving">Start</button>
+  <!-- get sensorsResolving() { return this.sensorsPending.length > 0; } -->
+  ```
+
+  Gate on **`pending`**, not `defined`: a timed-out package lands in `missing`, which should usually release the control into a degraded mode rather than lock the user out (a late arrival is still promoted out of `missing`). Do **not** `await customElements.whenDefined(tag)` inside the handler instead — it never rejects for a tag that is never registered, so a failed import parks the handler forever, and the handler stops being synchronous (which breaks iOS gesture-gated permission calls).
+- signals apps import **only from the single `@wcstack/signals/dom` entry** (mixing `.` and `.dom` on a CDN page duplicates the reactive core and breaks reactivity at the seam; lint: `wcs/signals-dual-entry`).
 - An SPA **must have `<base href="/">` in `<head>`** (otherwise deep links break: basename gets misderived from the URL).
+- There is a bare-name `wcstack` npm package — it is **documentation only, do not install it**. Buildless CDN loading stays the correct path.
 
 ### 3. State design (state family)
 
@@ -130,6 +142,8 @@ Run `npx @wcstack/lint` without `--errors-only` first (§5), fix its actionable 
 | Expecting spread (`...:`) to wire commands/events | They stay unwired | Wire `command.` / `eventToken.` explicitly |
 | Right-hand filter on spread (`...: slot\|f`) | Error | Filters go on individual property bindings |
 | `data-wcs` inside router-stamped content | Bindings never collected (state scans the DOM at bind time) | Put bound templates under body-level `<template data-wcs="if: ...">`; routes hold `<wcs-head>` + static content only |
+| `@wcstack/state/auto` loaded **before** an I/O package | A `$command.x.emit()` fired in the load window reaches zero subscribers and is dropped (tokens are never replayed; property bindings are fine) | Put every I/O-node `/auto` before `state/auto` |
+| `await customElements.whenDefined(tag)` as a readiness gate | Hangs forever if the package never loads (`whenDefined` never rejects) — takes the fallback path down with it | `<wcs-defined timeout>` bound to `disabled:` via its **`pending`** output |
 | SPA without `<base href="/">` | Deep links break (basename misderived) | Add `<base href="/">` to `<head>` |
 | Assuming `wcs-fetch:response` means success | Fires on HTTP/network errors too | Check `event.detail.status` in `$on` |
 | Storage slot seeded with `""` / `null` | Initial write-back clobbers the saved value | Seed the bound slot with `undefined`, or bind `value#init=element: slot` (v1.22+: the element's loaded value wins the initial sync, then normal two-way resumes) |

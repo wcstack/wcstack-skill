@@ -1,10 +1,10 @@
 # wcstack I/O Node Catalog + signals Quick Reference
 
-Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, and `examples/signals-live-search`. All 35 tags are cross-checked against source at v1.21.7 (contracts unchanged through v1.22.6) — attribute spellings, properties, commands, and the timing notes below are source-verified.
+Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, `docs/signals-definition-timing.md`, and `examples/signals-live-search`. All 35 tags are cross-checked against source at v1.21.7 (node contracts unchanged through v1.23.0; v1.23.0 added `mountNode` to signals and normalized Core as a public headless surface) — attribute spellings, properties, commands, and the timing notes below are source-verified.
 
 ## 0. Common Conventions (all I/O nodes)
 
-- **One-line CDN**: `<script type="module" src="https://esm.run/@wcstack/<pkg>/auto"></script>` alongside `@wcstack/state/auto`. Load order does not matter (deferred module execution; state waits via `whenDefined`) — the one exception is `@wcstack/devtools/auto`, which must load BEFORE state/auto (live wiring-ledger capture)
+- **One-line CDN**: `<script type="module" src="https://esm.run/@wcstack/<pkg>/auto"></script>` alongside `@wcstack/state/auto`. **Load every I/O node (and `@wcstack/devtools/auto`) BEFORE `state/auto`** — module scripts run in document order, so this guarantees the elements are defined before state binds. Property/spread bindings survive a late definition (deferred via `whenDefined`, re-applied with the latest value), but a **command-token emit is never replayed** — an emit inside the undefined window is silently dropped. Where the order is out of your hands (autoloader, embedded snippet), gate the emitting control with `<wcs-defined timeout>` on its `pending` output, never with an `await customElements.whenDefined()` inside the handler (that promise never rejects → permanent hang on a failed load)
 - **wc-bindable**: each tag declares via `static wcBindable` its **properties** (observable outputs; state subscribes) / **inputs** (write surface; attributes are kebab-case mirrors) / **commands** (invocable methods).
 - **Wiring**: output binding `data-wcs="value: users"` / command-token `data-wcs="command.<method>: $command.<name>"` / event-token `data-wcs="eventToken.<property>: <name>"` / spread `data-wcs="...: slot"`.
 - **Common idioms**:
@@ -123,6 +123,16 @@ The reactive form binds the `notice` attribute (with same-value suppression; rec
 ```
 `streamReady` re-fires with a new stream on every re-acquire (switchCamera / constraint change / visibility resume) — this `$on` wiring re-attaches each time. Start the recorder only after a stream is attached (a stream-less `start` silently errors).
 
+**defined** — a declarative readiness gate over tags whose load order you do not control (the correct replacement for `await customElements.whenDefined()` in a handler):
+```html
+<wcs-defined tags="wcs-tilt,wcs-accelerometer" timeout="5000"
+  data-wcs="defined: sensorsReady; pending: sensorsPending; missing: sensorsMissing"></wcs-defined>
+<button data-wcs="onclick: startGame; disabled: sensorsResolving; textContent: startLabel"></button>
+<!-- state side: sensorsPending seeded with the tag list (so the control is held on first paint),
+     get sensorsResolving() { return this.sensorsPending.length > 0; } -->
+```
+Gate on **`pending`**, not `defined`: `timeout` moves a never-arriving tag to `missing`, which releases the control into a degraded mode instead of locking the user out; a late arrival is still promoted out of `missing`, so a merely slow CDN self-heals. Outputs are monotonic and terminal, and all inputs are frozen at connect.
+
 ## 3. signals Quick Reference (`@wcstack/signals`)
 
 ### Positioning (when to use vs state)
@@ -138,7 +148,7 @@ The reactive form binds the `notice` attribute (with same-value suppression; rec
 { "imports": { "@wcstack/signals/dom": "https://esm.run/@wcstack/signals/dom" } }
 </script>
 <script type="module">
-  import { signal, computed, effect, h, render, For, bindNode } from "@wcstack/signals/dom";
+  import { signal, computed, effect, h, render, For, bindNode, mountNode } from "@wcstack/signals/dom";
 </script>
 ```
 
@@ -189,7 +199,6 @@ Strong contract: `source` must always honor the `AbortSignal` it is passed (this
 ### wc-bindable bridge — `bindNode` (turn I/O nodes into signals)
 
 ```js
-await customElements.whenDefined("wcs-fetch");
 const bound = bindNode(fetchEl);              // descriptor is auto-derived from constructor.wcBindable
 bound.signals.value.get();                    // output property → read-only signal (same-value guard)
 bound.on("fired", { fold, initial });         // event-token stream (fires every time, even on same value)
@@ -202,6 +211,49 @@ bound.dispose();                              // tear down everything (idempoten
 
 Typing via `bindNode<FetchShape>(el)`. Real-world pattern: `effect(() => bound.set("url", ...))` for the query → `<wcs-fetch>` auto-fetches → read `bound.signals.value` in a `computed` and render with `For` (examples/signals-live-search).
 
+**`bindNode` is synchronous, so the class must already be registered when you call it** — it reads the descriptor from `el.constructor.wcBindable`, and an un-upgraded element has none (it throws). This is the structural asymmetry with `data-wcs`: the declarative layer can defer wiring until upgrade, an imperative API that returns values now cannot. Pick the idiom by who loads the node (v1.23+, `docs/signals-definition-timing.md`):
+
+| Situation | Idiom | Failure behavior |
+|---|---|---|
+| App loads a **required** node | side-effect `import "@wcstack/<pkg>/auto"` + `mountNode(tag)` | module-graph evaluation failure — loud, correct for a node the app cannot run without |
+| App loads an **optional** node | `import("@wcstack/<pkg>/auto").then(() => mountNode(tag)).catch(degrade)` | `import()` **rejects** on load failure — a real per-package failure boundary |
+| A tag **you do not load** (autoloader, mixed state+signals page, third-party script) | `await customElements.whenDefined(tag)` then `bindNode(el)`, or a `<wcs-defined>` gate | `whenDefined` **never rejects** — pending forever; use `<wcs-defined timeout>` when the UX needs a failure signal |
+| Pure-logic node, **JS only** (no element, no `:state()`, no state coexistence) | `bindNode(new XxxCore())` | plain import semantics — **the registry is not involved, so definition timing does not exist** |
+
+`whenDefined` is the last resort for tags you do not own, not the default recipe.
+
+### `mountNode` — create + bind + mount a headless node (v1.23+, `@wcstack/signals/dom`)
+
+```js
+import "@wcstack/fetch/auto";                 // defines <wcs-fetch>; the module graph guarantees the order
+import { mountNode } from "@wcstack/signals/dom";
+
+const fetcher = mountNode("wcs-fetch", { attrs: { url: "/api/people" } });
+fetcher.signals.value.get();                  // the full BoundNode surface
+fetcher.el;                                   // the created element (connected)
+fetcher.unmount();                            // dispose() + remove the element (idempotent)
+```
+
+On a buildless page the side-effect import is what carries the ordering guarantee, so it has to be a real `import` inside the module — add `"@wcstack/fetch/auto": "https://esm.run/@wcstack/fetch/auto"` to the import map (or import the full URL directly). A `<script src=".../auto">` tag in `<head>` also works because module scripts execute in document order, but then the guarantee lives in the HTML rather than in the module graph.
+
+Signature: `mountNode(tagName, { attrs?, parent?, descriptor? })` → `BoundNode & { el, unmount() }`. The internal order **is** the contract: create → set `attrs` → `bindNode` → connect. Attributes land before `connectedCallback` (shells read their config there) and the adapter subscribes before connect, so an event fired from `connectedCallback` cannot be missed. `attrs` follow HTML boolean semantics (`true` → empty attribute, `false` → omitted, everything else stringified); `parent` defaults to `document.body`; the tag name is lower-cased for you. An undefined tag throws a descriptive error immediately instead of hanging. Like `bindNode` it is not tied to a reactive owner — tear down explicitly, or compose `onCleanup(() => m.unmount())`. On a `MountedNode`, **`dispose()` is an alias of `unmount()`** (it owns the element's lifecycle, so the familiar verb never leaves a connected element with live I/O behind).
+
+### Binding a Core directly — no element at all (v1.23+ normative)
+
+Every I/O node splits into a framework-agnostic **Core** and a custom-element **Shell**, and the Core alone is a complete wc-bindable node: it extends `EventTarget`, dispatches on itself by default (`constructor(target?)`, `target ?? this`), exposes observables as public getters, and carries `static wcBindable` — so `bindNode` resolves the descriptor with no second argument:
+
+```js
+import { FetchCore } from "@wcstack/fetch";
+import { bindNode } from "@wcstack/signals/dom";
+
+const core = new FetchCore();
+const bound = bindNode(core);   // descriptor from FetchCore.wcBindable — no element involved
+core.fetch("/api/user");        // commands are plain methods
+bound.signals.value.get();
+```
+
+This surface is normative across every wcstack I/O node (`docs/async-io-node-guidelines.md` §3.9 — audited at 38 Cores, zero deviations) and semver-protected: entry export, `EventTarget` inheritance, self-dispatch default, `static wcBindable`, getter-readable observables, `observe()`/`dispose()`/`ready`, never-throw, and headless construction (`target` always optional). Constructor **config** arguments stay per-package — check that package's README. Trade-off: you drive the lifecycle yourself (`observe()`/`dispose()` or the start/stop commands, e.g. `onCleanup(() => core.dispose())`), and you give up attribute config plus `:state()` CSS reflection (a Shell/ElementInternals feature). Fits pure-logic nodes (fetch / websocket / sse / broadcast / timer / debounce / defined / raf …); element-coupled nodes (intersection & resize targets, camera preview, fullscreen / pip / pointer-lock) keep earning their Shell.
+
 ### Stability
 
-The core (signal/computed/effect/createRoot/onCleanup/flushSync) and resource/streamResource are **Stable**. `bindNode`/`nodeSource` and the DOM layer (h/For/Index/SignalsElement) are **Evolving** (may change in minor releases).
+The core (signal/computed/effect/createRoot/onCleanup/flushSync) and resource/streamResource are **Stable**. `bindNode`/`nodeSource` and the DOM layer (h/For/Index/SignalsElement/`mountNode`) are **Evolving** (may change in minor releases).
