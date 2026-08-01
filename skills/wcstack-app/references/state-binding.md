@@ -265,6 +265,9 @@ export default {
 <my-form data-wcs="eventToken.created: userCreated"></my-form>
 ```
 
+- The event-token surface fires on **every** dispatch, including a repeat of the same payload — it is the occurrence channel, so prefer it over a property binding whenever "it happened again" is the thing you care about. (On I/O nodes, properties declared `semantics: "event"` are also exempt from the same-value guard as of v1.24; see `io-node-catalog.md` §0.)
+- **`$on` handlers are not awaited.** That is specified behavior and did not change in v1.24; what changed is that an async handler which rejects is now caught and reported through `console.error` naming the state and the handler, instead of surfacing as a bare unhandled rejection. It is still neither propagated nor awaited, so never sequence work on the return value — let the async work write its own state slot when it settles. Synchronous throws still propagate as programmer errors.
+
 ### state ↔ wcs-fetch working example (skeleton of the users-crud example)
 
 ```html
@@ -332,3 +335,5 @@ export default {
 11. Duplicate entries in `$commandTokens`/`$eventTokens` and undeclared keys in `$on` are initialization-time errors. Accessing an undeclared token (`this.$command.typo`) yields `undefined`.
 12. There is no custom filter registration API — do transformations the 40 built-ins cannot express in a getter.
 13. The only valid separator for multiple bindings in `data-wcs` is `;`.
+14. A property binding is same-value guarded: an `Object.is`-equal primitive write is skipped entirely (no dependency walk, no DOM apply, no `$updatedCallback`). Take repetition from the event-token surface — or from an I/O-node property declared `semantics: "event"`, which is exempt as of v1.24.
+15. `$on` handlers are never awaited. An async handler's rejection is reported via `console.error` (v1.24+), not propagated — do not sequence work on it.

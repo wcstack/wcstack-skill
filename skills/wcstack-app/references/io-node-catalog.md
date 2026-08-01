@@ -1,11 +1,26 @@
 # wcstack I/O Node Catalog + signals Quick Reference
 
-Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, `docs/signals-definition-timing.md`, and `examples/signals-live-search`. All 35 tags are cross-checked against source at v1.21.7 (node contracts unchanged through v1.23.0; v1.23.0 added `mountNode` to signals and normalized Core as a public headless surface) — attribute spellings, properties, commands, and the timing notes below are source-verified.
+Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, `docs/signals-definition-timing.md`, `docs/architecture-hardening/12-wc-bindable-observable-inventory.md`, and `examples/signals-live-search`. All 35 tags are cross-checked against source at v1.21.7 — attribute spellings, properties, commands, and the timing notes below are source-verified. Since then: v1.23.0 added `mountNode` to signals and normalized Core as a public headless surface; v1.24.0 declared observation semantics on every property (§0) and stopped the same-value guard from swallowing occurrences. Tag/property/command names themselves are unchanged.
 
 ## 0. Common Conventions (all I/O nodes)
 
-- **One-line CDN**: `<script type="module" src="https://esm.run/@wcstack/<pkg>/auto"></script>` alongside `@wcstack/state/auto`. **Load every I/O node (and `@wcstack/devtools/auto`) BEFORE `state/auto`** — module scripts run in document order, so this guarantees the elements are defined before state binds. Property/spread bindings survive a late definition (deferred via `whenDefined`, re-applied with the latest value), but a **command-token emit is never replayed** — an emit inside the undefined window is silently dropped. Where the order is out of your hands (autoloader, embedded snippet), gate the emitting control with `<wcs-defined timeout>` on its `pending` output, never with an `await customElements.whenDefined()` inside the handler (that promise never rejects → permanent hang on a failed load)
+- **One-line CDN**: `<script type="module" src="https://esm.run/@wcstack/<pkg>/auto"></script>` alongside `@wcstack/state/auto`. **Load every I/O node (and `@wcstack/devtools/auto`) BEFORE `state/auto`** — module scripts run in document order, so this guarantees the elements are defined before state binds. Property/spread bindings survive a late definition (deferred via `whenDefined`, re-applied with the latest value), but a **command-token emit is never replayed** — an emit inside the undefined window is silently dropped. Where the order is out of your hands (autoloader, embedded snippet), gate the emitting control with `<wcs-defined timeout>` on its `pending` output, never with an `await customElements.whenDefined()` inside the handler (that promise never rejects → permanent hang on a failed load).
+- **Pre-upgrade property writes are adopted (v1.24+)**: assigning an input on a not-yet-defined element (`el.url = "…"`) used to create an own data property that shadowed the prototype accessor forever — the setter never ran and the value vanished with no error. Every Shell now calls `upgradeProperties(this)` first thing in `connectedCallback`, re-running the declared `wcBindable.inputs` through their setters. Declared inputs only, and the command-token asymmetry above is unchanged.
 - **wc-bindable**: each tag declares via `static wcBindable` its **properties** (observable outputs; state subscribes) / **inputs** (write surface; attributes are kebab-case mirrors) / **commands** (invocable methods).
+- **Observation semantics (v1.24+)**: every observable property now declares `semantics: "state" | "event" | "handle"` (210 / 20 / 1 across the 41 surfaces). `state` is a *current value* — the same-value guard applies, so writing an `Object.is`-equal primitive skips the set, the dependency walk, the DOM apply and `$updatedCallback`. **`event` properties are occurrences and bypass that guard** (fixed in v1.24 — a repeated identical payload was being swallowed): the same `message` arriving twice now updates state twice. The 20 occurrence outputs, worth knowing because they are the ones where repetition carries meaning:
+
+  | tag | occurrence outputs |
+  |---|---|
+  | `<wcs-ws>` / `<wcs-sse>` / `<wcs-broadcast>` / `<wcs-worker>` | `message` |
+  | `<wcs-clipboard>` | `text` `items` `copied` `cut` `pasted` |
+  | `<wcs-notify>` | `clicked` `closed` `shown` |
+  | `<wcs-speak>` | `charIndex` `spokenWord` |
+  | `<wcs-listen>` | `result` |
+  | `<wcs-debounce>` / `<wcs-throttle>` | `fired` |
+  | `<wcs-recorder>` | `recorded` `dataavailable` |
+  | `<wcs-camera>` | `ended` |
+
+  Everything else — including `error` / `errorInfo` / `loading` / `value` / `trigger` — is `state`. The single `handle` is `<wcs-camera>`'s `streamReady` (a live `MediaStream`): never route it through state, wire it element-to-element (§2).
 - **Wiring**: output binding `data-wcs="value: users"` / command-token `data-wcs="command.<method>: $command.<name>"` / event-token `data-wcs="eventToken.<property>: <name>"` / spread `data-wcs="...: slot"`.
 - **Common idioms**:
   - `manual` attribute = do not auto-start on connect. **No `manual` does NOT imply auto-start**: idle / tilt / accelerometer / gyroscope / magnetometer / ambient-light-sensor never auto-start — they are inert until the `start` command.
@@ -94,6 +109,13 @@ For object sub-property changes, bind a getter containing `$trackDependency` to 
 </wcs-intersect>
 <!-- infinite-scroll edge detection: <wcs-intersect target="self" data-wcs="intersecting: atEnd"> -->
 ```
+
+**Retry needs a clock, not an edge detector.** `<wcs-intersect>` reports that visibility *changed*; it cannot schedule. In an infinite-scroll feed whose first page fails, there is nothing to scroll, so no further edge ever arrives and "scroll to retry" deadlocks. Add time as its own node — a failure arms `<wcs-timer manual once>` (one delayed tick), and `$on.retryTick` re-runs the same url:
+```html
+<wcs-timer manual once interval="1500"
+  data-wcs="command.start: $command.armRetry; eventToken.tick: retryTick"></wcs-timer>
+```
+Keep the budget finite (`retryAttempt < maxRetries`), spend it on dispatch rather than on arming, and hand the schedule to a manual Retry button once it is spent. Guard every other path against retrying while an error is pending — an opportunistic retry on the intersection edge is self-sustaining, because showing/hiding the "retrying…" line moves the sentinel across the observer margin and produces the next edge (`examples/state-intersect-scroll`).
 
 **clipboard** — copy via command-token (write requires a user gesture):
 ```html

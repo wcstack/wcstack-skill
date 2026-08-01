@@ -1,8 +1,8 @@
 ---
 name: wcstack-app
-description: Build web apps, SPAs, and demo pages with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components such as wcs-fetch / wcs-storage / wcs-ws). Follows the project's standards-first, zero-config, buildless principles — one-line CDN loading, then state design → data-wcs binding → I/O node wiring → routing, with exact syntax. Use when the user asks (in any language) to build something with wcstack, wcs-state, data-wcs, wcs-fetch or other wcs-* tags, or a signals-based app (e.g. "build an app with wcstack", 「wcstackでアプリを作って」「wcs-fetchで〜して」). Do NOT use for generic Web Components / Custom Elements questions unrelated to wcstack, for other frameworks (React / Vue / Lit / NoJS), or for developing or modifying the wcstack packages themselves.
+description: Build web apps, SPAs, and demo pages with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components such as wcs-fetch / wcs-storage / wcs-ws). Follows the project's standards-first, zero-config, buildless principles — one-line CDN loading, then state design → data-wcs binding → I/O node wiring → routing, with exact syntax. Use when the user asks (in any language) to build something with wcstack, wcs-state, data-wcs, wcs-fetch or other wcs-* tags, or a signals-based app (e.g. "build an app with wcstack", 「wcstackでアプリを作って」「wcs-fetchで〜して」). Also covers embedding wcs-* I/O nodes inside a React / Vue / Svelte / Solid app via the wc-bindable adapters. Do NOT use for generic Web Components / Custom Elements questions unrelated to wcstack, for building React / Vue / Lit / NoJS apps that do not touch wcstack, or for developing or modifying the wcstack packages themselves.
 metadata:
-  wcstack-version: "1.23.0"
+  wcstack-version: "1.24.0"
 ---
 
 # Building apps with wcstack
@@ -11,7 +11,7 @@ metadata:
 
 wcstack is a family of "standards-first, zero-config, buildless" Web Components packages. An app is correctly a **single HTML file + one-line CDN loads** — do not introduce bundlers, build steps, or npm install unless the user explicitly asks for them.
 
-Content verified against **wcstack v1.23.0** (READMEs, examples, and source as of 2026-07). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
+Content verified against **wcstack v1.24.0** (READMEs, examples, and source as of 2026-08). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
 
 Generated-code accuracy lives in the exact syntax. **This file holds only the workflow, a cheat sheet, and the failure-mode matrix**; full syntax is split into references/ next to this file. Read the matching reference before entering each phase:
 
@@ -94,6 +94,16 @@ Positive rules with no failure-mode row below: use `<wcs-link to="...">` instead
 - An SPA needs the fallback "every extensionless non-API GET returns index.html" (implementation in router-and-scaffold.md §7).
 - After finishing, do a minimal run in a browser or via a tiny server. For working references, see `examples/` (multi-package demos) and `packages/*/examples/` (single-package demos) in the wcstack repo.
 
+### 6. Embedding wcs-* nodes in a React / Vue / Svelte / Solid app
+
+This is a supported path as of v1.24 (`docs/framework-adapter-integration.md`): every I/O node implements wc-bindable, so a thin adapter (`@wc-bindable/react`, `/vue`, `/svelte`, `/solid`, …) maps an element's outputs into framework state with no per-element glue. Three rules carry it — nothing here uses `data-wcs` or `@wcstack/state`.
+
+1. **Import the definition before the app renders.** Adapters check `isWcBindable(el)` once on mount and never retry, so an element that upgrades later stays silently unbound — no error, no log. A static import at the entry (`import "@wcstack/websocket/auto";` in `main.tsx`) satisfies this automatically. If the definition genuinely arrives late (autoloader, CDN tag, code-split), gate the mount on `customElements.whenDefined("wcs-ws")`. `connectedCallbackPromise` is not a substitute — it covers connection, not definition.
+2. **Pass object-valued inputs as properties, not attributes.** Attributes hold only strings, and several frameworks fall back to attributes when the property is not on the element yet, which stringifies the payload. Use `.prop` (Vue), `prop:` (Solid), `.prop=` (Lit), or assign through a ref.
+3. **Unwrap reactive proxies before handing values in.** Vue `reactive`, Svelte `$state`, Solid stores, MobX and Qwik `useStore` wrap plain objects in proxies, and a proxy cannot cross a structured-clone boundary — `<wcs-worker>` / `<wcs-broadcast>` report a `DataCloneError` into `error` rather than sending. Pass `toRaw()` / `$state.snapshot()` / `unwrap()` results. Cores deliberately do not unwrap for you (that would mean a framework dependency).
+
+Live handles such as `<wcs-camera>`'s `MediaStream` are deliberately not snapshot state — take them off the element event via a ref. Angular templates and JSX cannot bind event names containing a colon, so `addEventListener` / `Renderer2.listen` is the portable path for `wcs-*:*` events. Working demos: `examples/websocket-chat` (React 19 and Vue 3 against the same server as the vanilla / state / signals variants).
+
 ## Cheat sheet (most-used bindings)
 
 ```html
@@ -146,6 +156,8 @@ Run `npx @wcstack/lint` without `--errors-only` first (§5), fix its actionable 
 | `await customElements.whenDefined(tag)` as a readiness gate | Hangs forever if the package never loads (`whenDefined` never rejects) — takes the fallback path down with it | `<wcs-defined timeout>` bound to `disabled:` via its **`pending`** output |
 | SPA without `<base href="/">` | Deep links break (basename misderived) | Add `<base href="/">` to `<head>` |
 | Assuming `wcs-fetch:response` means success | Fires on HTTP/network errors too | Check `event.detail.status` in `$on` |
+| Expecting a repeated identical value on a **`state`** output to fire again | The same-value guard skips the set, the dependency walk, the DOM apply and `$updatedCallback` | Take it from the occurrence surface instead — `eventToken.` + `$on`. (Properties declared `semantics: "event"` — `message` / `result` / `fired` / … — are exempt from the guard as of v1.24; the catalog §0 lists all 20) |
+| Awaiting an async `$on` handler, or relying on it to sequence work | Dispatch never awaits handlers; a rejection is caught and reported via `console.error` (v1.24+) but never propagates | Keep `$on` synchronous, or have the async work write its own state slot when it settles |
 | Storage slot seeded with `""` / `null` | Initial write-back clobbers the saved value | Seed the bound slot with `undefined`, or bind `value#init=element: slot` (v1.22+: the element's loaded value wins the initial sync, then normal two-way resumes) |
 | Seeding truthy initials into output-only properties | Element authority overwrites them | Seed real initial values (`null` / `false`) |
 | Seeding `true` into a `trigger`-bound slot | Fires/starts at bind, even with `manual` (no edge detection) | Seed `false`; write `true` to fire |
