@@ -1,13 +1,13 @@
 # wcstack I/O Node Catalog + signals Quick Reference
 
-Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, `docs/signals-definition-timing.md`, `docs/architecture-hardening/12-wc-bindable-observable-inventory.md`, and `examples/signals-live-search`. All 35 tags are cross-checked against source at v1.21.7 — attribute spellings, properties, commands, and the timing notes below are source-verified. Since then: v1.23.0 added `mountNode` to signals and normalized Core as a public headless surface; v1.24.0 declared observation semantics on every property (§0) and stopped the same-value guard from swallowing occurrences. Tag/property/command names themselves are unchanged.
+Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, `docs/signals-definition-timing.md`, `docs/architecture-hardening/12-wc-bindable-observable-inventory.md`, `docs/audio-tag-design.md`, `docs/midi-tag-design.md`, and `examples/signals-live-search`. The 38 pre-v1.25 tags were cross-checked against source at v1.21.7 — attribute spellings, properties, commands, and the timing notes below are source-verified. Since then: v1.23.0 added `mountNode` to signals and normalized Core as a public headless surface; v1.24.0 declared observation semantics on every property (§0) and stopped the same-value guard from swallowing occurrences; **v1.25.0 added `@wcstack/audio` (11 tags) and `@wcstack/midi` (1 tag)**, bringing the catalog to **50 I/O node tags** — those two are read from v1.26.0 source. Every pre-existing tag/property/command name is unchanged.
 
 ## 0. Common Conventions (all I/O nodes)
 
 - **One-line CDN**: `<script type="module" src="https://esm.run/@wcstack/<pkg>/auto"></script>` alongside `@wcstack/state/auto`. **Load every I/O node (and `@wcstack/devtools/auto`) BEFORE `state/auto`** — module scripts run in document order, so this guarantees the elements are defined before state binds. Property/spread bindings survive a late definition (deferred via `whenDefined`, re-applied with the latest value), but a **command-token emit is never replayed** — an emit inside the undefined window is silently dropped. Where the order is out of your hands (autoloader, embedded snippet), gate the emitting control with `<wcs-defined timeout>` on its `pending` output, never with an `await customElements.whenDefined()` inside the handler (that promise never rejects → permanent hang on a failed load).
 - **Pre-upgrade property writes are adopted (v1.24+)**: assigning an input on a not-yet-defined element (`el.url = "…"`) used to create an own data property that shadowed the prototype accessor forever — the setter never ran and the value vanished with no error. Every Shell now calls `upgradeProperties(this)` first thing in `connectedCallback`, re-running the declared `wcBindable.inputs` through their setters. Declared inputs only, and the command-token asymmetry above is unchanged.
 - **wc-bindable**: each tag declares via `static wcBindable` its **properties** (observable outputs; state subscribes) / **inputs** (write surface; attributes are kebab-case mirrors) / **commands** (invocable methods).
-- **Observation semantics (v1.24+)**: every observable property now declares `semantics: "state" | "event" | "handle"` (210 / 20 / 1 across the 41 surfaces). `state` is a *current value* — the same-value guard applies, so writing an `Object.is`-equal primitive skips the set, the dependency walk, the DOM apply and `$updatedCallback`. **`event` properties are occurrences and bypass that guard** (fixed in v1.24 — a repeated identical payload was being swallowed): the same `message` arriving twice now updates state twice. The 20 occurrence outputs, worth knowing because they are the ones where repetition carries meaning:
+- **Observation semantics (v1.24+)**: every observable property now declares `semantics: "state" | "event" | "handle"` (210 / 20 / 1 across the 41 surfaces inventoried at v1.24). `state` is a *current value* — the same-value guard applies, so writing an `Object.is`-equal primitive skips the set, the dependency walk, the DOM apply and `$updatedCallback`. **`event` properties are occurrences and bypass that guard** (fixed in v1.24 — a repeated identical payload was being swallowed): the same `message` arriving twice now updates state twice. The occurrence outputs, worth knowing because they are the ones where repetition carries meaning:
 
   | tag | occurrence outputs |
   |---|---|
@@ -19,8 +19,10 @@ Sources: each package's README (ja preferred) plus the `static wcBindable` / `st
   | `<wcs-debounce>` / `<wcs-throttle>` | `fired` |
   | `<wcs-recorder>` | `recorded` `dataavailable` |
   | `<wcs-camera>` | `ended` |
+  | `<wcs-midi>` (v1.25+) | `message` `type` `channel` `note` `velocity` `control` `value` — all seven are derived getters over the one `wcs-midi:message` occurrence |
+  | `<wcs-audio>` / `<wcs-analyser>` (v1.25+) | `noteOn` `noteOff` / `frame` |
 
-  Everything else — including `error` / `errorInfo` / `loading` / `value` / `trigger` — is `state`. The single `handle` is `<wcs-camera>`'s `streamReady` (a live `MediaStream`): never route it through state, wire it element-to-element (§2).
+  Everything else — including `error` / `errorInfo` / `loading` / `value` / `trigger` — is `state`. The single `handle` is still `<wcs-camera>`'s `streamReady` (a live `MediaStream`): never route it through state, wire it element-to-element (§2). **`@wcstack/audio` adds zero handles** despite owning a live `AudioNode` graph — the graph is a descriptor, not a value, and the Core owns and disposes it (ADR-14 G2), so the 10 new outputs audio + midi contribute are all `event`.
 - **Wiring**: output binding `data-wcs="value: users"` / command-token `data-wcs="command.<method>: $command.<name>"` / event-token `data-wcs="eventToken.<property>: <name>"` / spread `data-wcs="...: slot"`.
 - **Common idioms**:
   - `manual` attribute = do not auto-start on connect. **No `manual` does NOT imply auto-start**: idle / tilt / accelerometer / gyroscope / magnetometer / ambient-light-sensor never auto-start — they are inert until the `start` command.
@@ -35,7 +37,7 @@ Sources: each package's README (ja preferred) plus the `static wcBindable` / `st
 
 | package | tag | key attributes / inputs | properties (outputs) | commands |
 |---|---|---|---|---|
-| **fetch** | `<wcs-fetch>` (helpers: `<wcs-fetch-header name value>` `<wcs-fetch-body type>` `<wcs-infinite-scroll>`) | `url`(live: change re-fetches — same-url writes skipped, in-flight aborted) `method` `target` `manual` `body`(one-shot: consumed per fetch; a mid-flight write stages for the NEXT fetch) `response-type`(auto/json/text/blob/arrayBuffer) `trigger`(no-op while `url` is empty) | `value` `loading` `error` `status` `objectURL` `trigger` | `fetch` `abort` |
+| **fetch** | `<wcs-fetch>` (helpers: `<wcs-fetch-header name value>` `<wcs-fetch-body type>` `<wcs-infinite-scroll>`) | `url`(live: change re-fetches — in-flight aborted. The auto-fetch guard remembers the last url **actually fetched**, not the previous value, so `"a"→""→"a"` is skipped just like `"a"→"a"`; re-running the same url needs an explicit trigger) `method` `target` `manual` `body`(one-shot: consumed per fetch; a mid-flight write stages for the NEXT fetch) `response-type`(auto/json/text/blob/arrayBuffer) `trigger`(no-op while `url` is empty) | `value` `loading` `error` `status` `objectURL` `trigger` | `fetch` `abort` |
 | **storage** | `<wcs-storage>` | `key` `type`(local/session) `value` `manual` `trigger` | `value` `loading` `error` `trigger` (with cross-tab sync) | `load` `save` `remove` (all synchronous) |
 | **upload** | `<wcs-upload>` | `url` `method` `field-name` `multiple` `max-size` `accept` `manual` `files`(auto-upload fires on `files` write, NOT on `url` change) `trigger` | `value` `loading` `progress` `error` `status` `files` `trigger` | `upload` `abort` |
 | **websocket** | `<wcs-ws>` | `url` `protocols` `auto-reconnect` `reconnect-interval` `max-reconnects` `binary-type` `manual` `trigger` `send` (writing a value sends immediately; objects are auto-JSON-serialized). Options besides `url` are read per `connect`; clearing `url` does not disconnect — `close` does | `message` `connected` `loading` `readyState` `trigger` `send` | `connect` `sendMessage` `close` |
@@ -72,6 +74,22 @@ Sources: each package's README (ja preferred) plus the `static wcBindable` / `st
 | **gyroscope** | `<wcs-gyroscope>` | `frequency` | `x` `y` `z` | `start` `stop` |
 | **magnetometer** | `<wcs-magnetometer>` | `frequency` | `x` `y` `z` | `start` `stop` |
 | **ambient-light-sensor** | `<wcs-ambient-light-sensor>` | `frequency` | `illuminance` | `start` `stop` |
+| **midi** (v1.25+) | `<wcs-midi>` | `input`(omitted = every input port; else port id or case-insensitive name prefix) `output`(omitted = first output port) `channel`(1-16; omitted = all — system messages always pass) `sysex`(a separate, more restricted grant — leave off) `auto`(connect + request on connect). `input`/`output`/`channel` are live: they **re-hook the existing access**, never re-request, so no second permission prompt | `message` `type` `channel` `note` `velocity`(**normalized 0-1**) `control`(raw 0-127) `value`(raw 0-127, but **-1..1 for pitch bend**) `devices` `connected` `permission` `granted` `denied` `unsupported` `error` `errorInfo` | `request` `close` `send` |
+| **audio** (v1.25+) | `<wcs-audio>` — the patch root | `volume` `limiter`(on by default at -18 dBFS as ear protection; `limiter="off"` to measure real amplitudes) `resume-on-gesture`(default on; `"off"` = drive it yourself with `command.resume`) | `state`(running/suspended/unsupported) `running` `suspended` `unsupported` `voices` `noteOn` `noteOff` `warnings` `error` `errorInfo` | `resume` `suspend` `noteOn(note, velocity)` `noteOff(note)` `allNotesOff` |
+| **audio** | node tags `<wcs-osc>`(`type` `frequency` `detune` `glide` `transpose`) `<wcs-noise>` `<wcs-biquad>`(`type` `frequency` `q` `gain` `detune`) `<wcs-gain>`(`gain`) `<wcs-delay>`(`time` `feedback` `mix`) `<wcs-shaper>`(`amount`) `<wcs-env>`(`attack` `decay` `sustain` `release` `depth`) `<wcs-lfo>`(`type` `rate` `depth`) | every numeric attribute above is a bindable input and is **live**; the routing attributes `id` / `out` / `param` / `note` / `master` and `<wcs-voice poly>` are **structural** (a change rebuilds the graph) and are deliberately NOT bindable | none — a node tag is a pure input surface (everything observable belongs to `<wcs-audio>`) | none |
+| **audio** | `<wcs-analyser>` | `fft` `smoothing` (+ structural `master`) | `frame` (occurrence — `sample()` returns a **freshly allocated** array, so retaining a frame is safe) | `sample(mode)` — `"wave"` (default) or `"fft"`. It produces data only; drawing is your canvas's job |
+
+### 1.1 `@wcstack/audio` is a graph, not a value (read before writing a patch)
+
+The audio package does not follow the `manual` / `trigger` idioms above — it has a shape of its own:
+
+- **Nesting is the signal chain.** A parent tag's output feeds each nested child; a leaf (no chain children, no `out`) reaches the master output. Anything nesting cannot express is routed by id: `out="bus"` (many-to-one), `out="vcf.frequency"` (drive any `AudioParam`), `param="frequency"` (modulator shorthand for the *parent's* parameter).
+- **`<wcs-voice poly="8">` makes its subtree a template** — one fresh graph per held note, with release tails and oldest-note stealing. Outside a voice the graph is live and monophonic.
+- **Structure is declared, values are reactive.** Numeric attribute/property writes apply live to every instance including sounding voices; structural attributes (`id` `out` `param` `note` `master` `poly`), and adding/removing/moving an audio tag, **rebuild — which cuts every sounding voice audibly**. Any other DOM change does nothing (a `<div>` added among your sliders must not silence the instrument). Rebuilds coalesce onto a microtask and an unchanged re-submit is free.
+- **Writes are accepted synchronously; when they become *audible* is deliberately unspecified** (render quantum + output latency are hardware-dependent). Parameter changes are smoothed over ~20 ms as part of the contract, and the effective value is never read back — a getter returns what you last wrote. This is the cross-cutting rule for any node with an external clock.
+- **Audio cannot start before a gesture.** `<wcs-audio>` resumes the shared context on the first click/keypress. The `AudioContext` is shared page-wide (browsers cap concurrent contexts); each root keeps its own master gain and limiter.
+- **A voice patch with no `<wcs-env>`** gets an implicit 5 ms attack so it cannot click, and is released on note-off. Voices are reclaimed on the audio clock, never on a timer.
+- **Headless**: `new AudioGraphCore()` + `setPatch({nodes:[…]})` takes the same descriptor as a plain object; pass your own `createContext` to render into an `OfflineAudioContext` (no gesture, faster than realtime, deterministic). SSR renders nothing and reports `unsupported`.
 
 ## 2. Minimal state-integration examples for high-frequency nodes (from each README)
 
@@ -110,12 +128,13 @@ For object sub-property changes, bind a getter containing `$trackDependency` to 
 <!-- infinite-scroll edge detection: <wcs-intersect target="self" data-wcs="intersecting: atEnd"> -->
 ```
 
-**Retry needs a clock, not an edge detector.** `<wcs-intersect>` reports that visibility *changed*; it cannot schedule. In an infinite-scroll feed whose first page fails, there is nothing to scroll, so no further edge ever arrives and "scroll to retry" deadlocks. Add time as its own node — a failure arms `<wcs-timer manual once>` (one delayed tick), and `$on.retryTick` re-runs the same url:
-```html
-<wcs-timer manual once interval="1500"
-  data-wcs="command.start: $command.armRetry; eventToken.tick: retryTick"></wcs-timer>
-```
-Keep the budget finite (`retryAttempt < maxRetries`), spend it on dispatch rather than on arming, and hand the schedule to a manual Retry button once it is spent. Guard every other path against retrying while an error is pending — an opportunistic retry on the intersection edge is self-sustaining, because showing/hiding the "retrying…" line moves the sentinel across the observer margin and produces the next edge (`examples/state-intersect-scroll`).
+**Paginate from committed length, not `page++` (v1.26 canonical form).** `<wcs-intersect>` reports that visibility *changed*; it cannot schedule, and it has no "qualified re-entry" event. `examples/state-intersect-scroll` was rebuilt in v1.26 around a `$streams` entry that owns the page fetch, and the shape it landed on is the one to copy — the older "arm a `<wcs-timer manual once>` from the failure" recipe is superseded:
+
+- **Derive the requested page from committed items** — `page = floor(items.length / pageSize) + 1` — instead of incrementing on each edge. Under `$streams`' switchMap restart a blind `page++` is *wrong*: a second edge would abort page N in flight and jump to N+1, silently skipping a page. With the derived form, edges arriving while page N is active or failed write the same primitive, the same-value guard makes the enqueue a no-op, and the stream does not restart. That replaces the hand-written `if (loading) return` exhaust gate entirely.
+- **The producer owns retry.** `$streams` is switchMap, not `retryWhen` — no automatic reconnection. Put a finite `1 + maxRetries` attempt loop and an abort-aware delay inside the async generator; final failure surfaces as `$streamStatus.<name> === "error"` + `$streamError.<name>`.
+- **"Run the same page again" is an occurrence, and the restart API is value-based** — encode it as a changing dependency (`retryNonce`) read by `args`. A Retry button increments it. This is a real boundary of the current API, not a workaround you can skip.
+- **`reobserve()` only after a successful full page**, never on error: with the sentinel still visible, a new observer's first callback fires immediately, so error layout becomes an infinite retry scheduler. A partial page sets `noMore` instead.
+- **`$updatedCallback` commits the page** into the long-lived `items` (a stream's `fold` resets on every restart, so it can only hold the current page). `$updatedCallback` is binding-driven — the stream's value/status must have a live DOM binding for the commit point to run at all; do not rely on a headless subscription.
 
 **clipboard** — copy via command-token (write requires a user gesture):
 ```html
@@ -154,6 +173,37 @@ The reactive form binds the `notice` attribute (with same-value suppression; rec
      get sensorsResolving() { return this.sensorsPending.length > 0; } -->
 ```
 Gate on **`pending`**, not `defined`: `timeout` moves a never-arriving tag to `missing`, which releases the control into a degraded mode instead of locking the user out; a late arrival is still promoted out of `missing`, so a merely slow CDN self-heals. Outputs are monotonic and terminal, and all inputs are frozen at connect.
+
+**midi** — one tag covers both directions (a page holds exactly one `MIDIAccess`). Take notes off the occurrence surface, not off a property:
+```html
+<wcs-midi auto channel="1" data-wcs="eventToken.message: onMidi; control: cc; value: ccValue"></wcs-midi>
+<!-- $eventTokens: ["onMidi"],
+     $on: { onMidi: (state, ev) => { const { type, note, velocity } = ev.detail; ... } } -->
+```
+Nothing starts on connect unless `auto` is set — `requestMIDIAccess()` can prompt — so otherwise fire `command.request` from a gesture. Two normalizations are already applied for you: **a note-on with velocity 0 is reported as `noteoff`** (many controllers never send a real note-off; the raw status byte stays in `message.data[0]`), and **velocity is 0-1** so it multiplies straight into a gain. Chromium-only and secure-context-only — elsewhere `permission` is `"unsupported"` rather than a throw. Device names are not unique; prefer ids when targeting a specific unit.
+
+**audio** — structure in markup, numbers from state; commands carry the notes:
+```html
+<wcs-audio volume="0.7"
+  data-wcs="command.noteOn: $command.play; command.noteOff: $command.stop; voices: activeVoices">
+  <wcs-voice poly="8">
+    <wcs-osc type="sawtooth" note detune="-7" out="vcf"></wcs-osc>
+    <wcs-biquad id="vcf" type="lowpass" data-wcs="frequency: cutoff; q: resonance">
+      <wcs-lfo type="sine" rate="4" param="frequency" data-wcs="depth: lfoDepth"></wcs-lfo>
+      <wcs-env attack="0.01" decay="0.25" sustain="0.55" release="0.35" out="bus"></wcs-env>
+    </wcs-biquad>
+  </wcs-voice>
+  <wcs-gain id="bus" gain="0.8"><wcs-delay time="0.28" feedback="0.35" mix="0.2"></wcs-delay></wcs-gain>
+</wcs-audio>
+<input type="range" min="80" max="8000" data-wcs="value: cutoff">
+<!-- $commandTokens: ["play","stop"];  this.$command.play.emit(60, 0.9) -->
+```
+Bind only the numeric params (§1.1) — writing a structural attribute from state rebuilds the graph and cuts every sounding voice. To draw a scope, drive `<wcs-analyser>` from `<wcs-raf>` through the command/event tokens rather than owning a rAF loop:
+```html
+<wcs-raf data-wcs="eventToken.tick: onTick"></wcs-raf>
+<wcs-analyser id="scope" master
+  data-wcs="command.sample: $command.grab; eventToken.frame: onFrame"></wcs-analyser>
+```
 
 ## 3. signals Quick Reference (`@wcstack/signals`)
 
@@ -242,7 +292,7 @@ Typing via `bindNode<FetchShape>(el)`. Real-world pattern: `effect(() => bound.s
 | A tag **you do not load** (autoloader, mixed state+signals page, third-party script) | `await customElements.whenDefined(tag)` then `bindNode(el)`, or a `<wcs-defined>` gate | `whenDefined` **never rejects** — pending forever; use `<wcs-defined timeout>` when the UX needs a failure signal |
 | Pure-logic node, **JS only** (no element, no `:state()`, no state coexistence) | `bindNode(new XxxCore())` | plain import semantics — **the registry is not involved, so definition timing does not exist** |
 
-`whenDefined` is the last resort for tags you do not own, not the default recipe.
+`whenDefined` is the last resort for tags you do not own, not the default recipe — as of v1.26 no `whenDefined` call remains in any repo demo. **Split static vs dynamic import by what is lost when that import fails**, not by convenience: the first pass at converting `signals-tilt-maze` put `wakelock` on the static import, and one decorative package's CDN failure blanked the entire page again — exactly the failure mode the conversion was meant to remove. Only a node the app cannot exist without belongs on a static import; everything else takes the `import().then(mountNode).catch(degrade)` form (with a `Promise.race` timeout if the UX needs a deadline).
 
 ### `mountNode` — create + bind + mount a headless node (v1.23+, `@wcstack/signals/dom`)
 
@@ -274,7 +324,7 @@ core.fetch("/api/user");        // commands are plain methods
 bound.signals.value.get();
 ```
 
-This surface is normative across every wcstack I/O node (`docs/async-io-node-guidelines.md` §3.9 — audited at 38 Cores, zero deviations) and semver-protected: entry export, `EventTarget` inheritance, self-dispatch default, `static wcBindable`, getter-readable observables, `observe()`/`dispose()`/`ready`, never-throw, and headless construction (`target` always optional). Constructor **config** arguments stay per-package — check that package's README. Trade-off: you drive the lifecycle yourself (`observe()`/`dispose()` or the start/stop commands, e.g. `onCleanup(() => core.dispose())`), and you give up attribute config plus `:state()` CSS reflection (a Shell/ElementInternals feature). Fits pure-logic nodes (fetch / websocket / sse / broadcast / timer / debounce / defined / raf …); element-coupled nodes (intersection & resize targets, camera preview, fullscreen / pip / pointer-lock) keep earning their Shell.
+This surface is normative across every wcstack I/O node (`docs/async-io-node-guidelines.md` §3.9 — audited at 38 Cores, zero deviations; the audit predates v1.25's `AudioGraphCore` / `MidiCore`, both of which ship the same shape) and semver-protected: entry export, `EventTarget` inheritance, self-dispatch default, `static wcBindable`, getter-readable observables, `observe()`/`dispose()`/`ready`, never-throw, and headless construction (`target` always optional). Constructor **config** arguments stay per-package — check that package's README. Trade-off: you drive the lifecycle yourself (`observe()`/`dispose()` or the start/stop commands, e.g. `onCleanup(() => core.dispose())`), and you give up attribute config plus `:state()` CSS reflection (a Shell/ElementInternals feature). Fits pure-logic nodes (fetch / websocket / sse / broadcast / timer / debounce / defined / raf …); element-coupled nodes (intersection & resize targets, camera preview, fullscreen / pip / pointer-lock) keep earning their Shell.
 
 ### Stability
 

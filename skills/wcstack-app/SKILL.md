@@ -1,8 +1,8 @@
 ---
 name: wcstack-app
-description: Build web apps, SPAs, and demo pages with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components such as wcs-fetch / wcs-storage / wcs-ws). Follows the project's standards-first, zero-config, buildless principles — one-line CDN loading, then state design → data-wcs binding → I/O node wiring → routing, with exact syntax. Use when the user asks (in any language) to build something with wcstack, wcs-state, data-wcs, wcs-fetch or other wcs-* tags, or a signals-based app (e.g. "build an app with wcstack", 「wcstackでアプリを作って」「wcs-fetchで〜して」). Also covers embedding wcs-* I/O nodes inside a React / Vue / Svelte / Solid app via the wc-bindable adapters. Do NOT use for generic Web Components / Custom Elements questions unrelated to wcstack, for building React / Vue / Lit / NoJS apps that do not touch wcstack, or for developing or modifying the wcstack packages themselves.
+description: Build web apps, SPAs, and demo pages with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components such as wcs-fetch / wcs-storage / wcs-ws / wcs-midi / wcs-audio). Follows the project's standards-first, zero-config, buildless principles — one-line CDN loading, then state design → data-wcs binding → I/O node wiring → routing, with exact syntax. Use when the user asks (in any language) to build something with wcstack, wcs-state, data-wcs, wcs-fetch or other wcs-* tags, or a signals-based app (e.g. "build an app with wcstack", 「wcstackでアプリを作って」「wcs-fetchで〜して」). Also covers embedding wcs-* I/O nodes inside a React / Vue / Svelte / Solid app via the wc-bindable adapters. Do NOT use for generic Web Components / Custom Elements questions unrelated to wcstack, for building React / Vue / Lit / NoJS apps that do not touch wcstack, or for developing or modifying the wcstack packages themselves.
 metadata:
-  wcstack-version: "1.24.0"
+  wcstack-version: "1.26.0"
 ---
 
 # Building apps with wcstack
@@ -11,15 +11,15 @@ metadata:
 
 wcstack is a family of "standards-first, zero-config, buildless" Web Components packages. An app is correctly a **single HTML file + one-line CDN loads** — do not introduce bundlers, build steps, or npm install unless the user explicitly asks for them.
 
-Content verified against **wcstack v1.24.0** (READMEs, examples, and source as of 2026-08). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
+Content verified against **wcstack v1.26.0** (READMEs, examples, and source as of 2026-08). If the installed/CDN version is much newer, spot-check syntax against the package READMEs.
 
 Generated-code accuracy lives in the exact syntax. **This file holds only the workflow, a cheat sheet, and the failure-mode matrix**; full syntax is split into references/ next to this file. Read the matching reference before entering each phase:
 
 | File | Read before |
 |---|---|
-| `references/state-binding.md` | writing `<wcs-state>` / `data-wcs` / filters / command- & event-tokens |
+| `references/state-binding.md` | writing `<wcs-state>` / `data-wcs` / filters / command- & event-tokens / `$listKeys` / DCC vs `bind-component` / CSP + SRI loading |
 | `references/router-and-scaffold.md` | writing SPA routing / autoloader / index.html scaffold / server |
-| `references/io-node-catalog.md` | wiring I/O nodes (35 wcs-* tags) or writing a signals app |
+| `references/io-node-catalog.md` | wiring I/O nodes (50 wcs-* tags) or writing a signals app |
 
 ## Workflow
 
@@ -54,6 +54,7 @@ Generated-code accuracy lives in the exact syntax. **This file holds only the wo
 - signals apps import **only from the single `@wcstack/signals/dom` entry** (mixing `.` and `.dom` on a CDN page duplicates the reactive core and breaks reactivity at the seam; lint: `wcs/signals-dual-entry`).
 - An SPA **must have `<base href="/">` in `<head>`** (otherwise deep links break: basename gets misderived from the URL).
 - There is a bare-name `wcstack` npm package — it is **documentation only, do not install it**. Buildless CDN loading stays the correct path.
+- **Production / CSP (v1.26+)** — only when the user asks for hardening; `esm.run` stays the default for demos and prototypes. Pin the version and use the direct jsDelivr path so `integrity` works: `<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.26.0/dist/auto.min.js" integrity="sha384-…">`. `dist/auto.min.js` has zero static imports, so one hash covers the whole runtime; digests ship in the GitHub Release (`sri.json`), never taken from the CDN's own API. `esm.run` cannot be hashed (it redirects to a re-bundling `+esm` endpoint) and costs two CSP hosts. **The one CSP fact that silently breaks a working page: the inline `<script type="module">` inside `<wcs-state>` is imported through a `blob:` URL, so a strict policy needs `script-src blob:` — a page nonce does not help. Move the state to `src="./state.js"` instead.** Route guards are blob:-only with no `src=` escape. Details in `references/state-binding.md` §1–2.
 
 ### 3. State design (state family)
 
@@ -62,6 +63,7 @@ State is a plain object `export default`. Computed values are getters keyed by d
 - One state slot per I/O node (`listFetch: { value: null, loading: false, error: null, status: 0 }`)
 - `for:` requires an array — wrap nullable sources in a derived getter: `get rows() { return this["listFetch.value"] ?? []; }`
 - Never seed convenient initial values into output-only element properties (the element is the authority; seed real initial values like `null` / `false`)
+- **Declare `$listKeys` (v1.26+) for any list that is refetched *and* whose rows hold DOM state the bindings do not own** — focus, IME composition, `<details>` open/closed, in-row scroll, `<canvas>`, `<video>.currentTime`. A `fetch().json()` refresh produces all-new objects, so value-based row identity fails and that state is shuffled between rows, not merely lost: `$listKeys: { items: "id" }` keeps the row objects and writes only the changed fields. Skip it for plain text lists.
 
 ### 4. Bindings → I/O wiring → routing
 
@@ -74,6 +76,11 @@ Read the references, then write. Four wiring forms between state and I/O nodes:
 
 Positive rules with no failure-mode row below: use `<wcs-link to="...">` instead of raw `<a>` (basename handling + `active` class); wire live handles (MediaStream etc.) element-to-element via `eventToken` → `$command.attachStream`, never through state; `trigger` is a momentary input property, not a command — any truthy write fires (no edge detection, and it bypasses `manual`), so seed its slot with `false`. Exception: on `wcs-debounce`/`wcs-throttle`, `trigger` IS a command.
 
+Two shapes that sit outside those four forms:
+
+- **Giving a custom element its own state** — pick exactly one mechanism, they are exclusive as of v1.26 and combining them errors: **DCC** (`data-wc-definition`, HTML only, declares `$bindables` + `$commands: ["bumpBy"]` so the parent can `command.bumpBy: $command.bump`) when there is no JS class, **`bind-component`** (path mapping, no `wcBindable`, so no spread and no command tokens) when you are already writing one. Decision table: `references/state-binding.md` §11.
+- **`@wcstack/audio` (v1.25+)** — markup nesting *is* the signal graph. Only numeric params are bindable; `id` / `out` / `param` / `note` / `poly` are structural, and changing one **rebuilds the graph and audibly cuts every sounding voice**. Read `references/io-node-catalog.md` §1.1 before writing a patch.
+
 ### 5. Server and verification
 
 - **Lint every generated HTML file before browser testing**. During authoring, keep warnings visible:
@@ -82,7 +89,7 @@ Positive rules with no failure-mode row below: use `<wcs-link to="...">` instead
   npx @wcstack/lint index.html
   ```
 
-  Pass every generated HTML file and `wcstack.manifest.json` sidecar as separate arguments when the app has more than one file. Read the stable `wcs/*` diagnostic codes and `source:line:col` ranges, fix all errors and actionable warnings, then rerun. The CLI machine-checks the real contracts — `data-wcs` syntax / filters / state paths, wcs-* tag members (`command.` / `eventToken.` keys included, with typo suggestions), non-reactive nested/array mutations, `trigger` slots seeded `true`, storage seed clobber, missing `<base href>`, and signals dual-entry.
+  Pass every generated HTML file and `wcstack.manifest.json` sidecar as separate arguments when the app has more than one file. Read the stable `wcs/*` diagnostic codes and `source:line:col` ranges, fix all errors and actionable warnings, then rerun. The CLI machine-checks the real contracts — `data-wcs` syntax / filters / state paths, wcs-* tag members (`command.` / `eventToken.` keys included, with typo suggestions), non-reactive nested/array mutations, `trigger` slots seeded `true`, storage seed clobber, missing `<base href>`, and signals dual-entry. v1.26 added no new codes; it taught the analyzer to follow `$listKeys` (so `for: items.*.children` validates even when `items` starts `[]`) and fixed false `wcs/binding-path-missing` reports caused by `word:` inside comments, strings, and getter bodies.
 - **Use the quiet form only as the final CI gate**:
 
   ```bash
@@ -132,6 +139,7 @@ export default {
   $commandTokens: ["reload"],
   $eventTokens: ["responded"],
   $on: { responded(state, ev) { /* check ev.detail.status first */ } },
+  $listKeys: { items: "id" },   // v1.26+: keep row DOM state across a refetch
 };
 ```
 
@@ -167,6 +175,14 @@ Run `npx @wcstack/lint` without `--errors-only` first (§5), fix its actionable 
 | Missing trailing colon on `else` | Parse fails | `data-wcs="else:"` |
 | Mixing `@wcstack/signals` and `@wcstack/signals/dom` on a CDN page | Two reactive cores, broken seams | Import everything from the single `/dom` entry |
 | Custom filter registration | No such API exists | Compose the 40 built-in filters, or compute in a getter |
+| Strict CSP + the inline `<script type="module">` state form | State never initializes; the only console message is `Failed to fetch dynamically imported module` unless a violation was observed | It is imported via a `blob:` URL and the page nonce does not carry over — move the state to `src="./state.js"`, or open `script-src blob:` deliberately |
+| Refetching a list (`fetch().json()`) whose rows hold focus / IME / `<details>` / `<canvas>` / `<video>` state | Rows are rebuilt, and that state is **shuffled onto other rows** rather than just lost | Declare `$listKeys: { items: "id" }` (v1.26+) so rows are matched by key and only changed fields are written |
+| Using `$updatedCallback` as a headless watcher | Never fires for a path with no live DOM binding | It is binding-driven — bind the value/status somewhere, or write the follow-up work into the same handler that set the state |
+| DCC and `bind-component` on the same component (e.g. `<wcs-state bind-component>` inside a `data-wc-definition` host) | Error (v1.26 made them exclusive) | One mechanism per component — no JS class → DCC, class already written → `bind-component` |
+| Duplicate name in `$bindables` / `$commands` | Used to make the whole `wcBindable` declaration unreadable and the element silently non-bindable; now a definition-time error | Deduplicate; `$commands` lists methods only, `$bindables` value properties only |
+| `page++` on each `<wcs-intersect>` edge with a `$streams` fetch | A second edge aborts page N and jumps to N+1 — a page is skipped | Derive it from committed rows: `page = floor(items.length / pageSize) + 1`; repeated edges then rewrite the same value and no-op |
+| Expecting an auto-fetch after the url passes through empty/`undefined` and back | Skipped — the guard holds the last url *actually fetched*, which an empty url does not update | Explicit `command.fetch` / `trigger`, which bypass the guard |
+| Binding a structural audio attribute (`out` / `param` / `note` / `poly`) from state | Every write rebuilds the graph and cuts sounding voices | Bind only numeric params; declare structure in markup |
 
 ## Minimal template (starting point)
 

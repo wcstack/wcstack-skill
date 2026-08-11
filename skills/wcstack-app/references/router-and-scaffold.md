@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`. All verified against the actual files.
+Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v1.26.0.
 
 ## 1. Minimal SPA scaffold
 
@@ -13,6 +13,18 @@ Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, roo
 ```
 
 `/auto` is a zero-config bootstrap that only performs registration. **List every I/O node package (and `@wcstack/devtools/auto`) before `@wcstack/state/auto`** — module scripts run in document order, so this guarantees the elements are defined before state binds. Property/spread bindings would survive a late definition (deferred via `whenDefined`), but a **command-token emit is never replayed**, so an emit fired while an element is still undefined is silently dropped.
+
+### Hardening the same scaffold for production (v1.26+)
+
+Swap each `esm.run` line for a version-pinned direct path with an `integrity` attribute; the order rule is unchanged.
+
+```html
+<script type="module"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@1.26.0/dist/auto.min.js"
+        integrity="sha384-…"></script>
+```
+
+`dist/auto.min.js` has zero static imports, so one hash covers the whole runtime. Digests come from the GitHub Release (`sri.json` asset), not from the CDN's own data API. `esm.run` cannot be hashed at all — it redirects to a re-bundling `+esm` endpoint — and under CSP it also costs two hosts (`https://esm.run` **and** `https://cdn.jsdelivr.net`), because the redirect target is re-checked. Full directive table and the state-loading caveats: `references/state-binding.md` §1–2.
 
 ### Basic router structure
 
@@ -165,6 +177,8 @@ Manages the document `<head>` per route. Stack-based: the last one connected win
 
 `false` cancels → navigates to the path in the `guard` attribute. `<wcs-guard-handler>` is removed from the DOM after parsing. Ignored if placed outside a `<wcs-route>`. Can also be set from JS via `route.guardHandler = fn`.
 
+**Guards force `script-src blob:` under a CSP.** The handler is evaluated through a `blob:` URL, and unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented. If the policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead.
+
 ### basename
 
 ```html
@@ -255,6 +269,7 @@ export default class UiButton extends HTMLElement {
 
 - The `is` attribute (customized built-ins) is also auto-detected (the autoloader defines with `{ extends }`).
 - Components that fail to load are not retried (failure detection is the responsibility of `@wcstack/defined`). Dynamically added elements are also detected via MutationObserver.
+- **Under a CSP the inline import map needs a `nonce`** (`<script type="importmap" nonce="{RANDOM}">`) — being inline, it cannot take `integrity` — and `script-src` must allow whatever host `@components/` resolves to. Autoloaded components are page-supplied code, so they are outside the wcstack bundle's `integrity` coverage; hash them yourself if that matters.
 
 ## 7. Full index.html structure of the real demo (actual examples/router-spa skeleton)
 
@@ -386,5 +401,6 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 5. In Light DOM layouts, elements with a `slot` attribute are only effective as direct children of `<wcs-layout>`.
 6. A type mismatch is not an error but "no match" — `/products/abc` passes through `:productId(int)` and falls to the fallback.
 7. Relative paths cannot be written on top-level routes. Nested routes use relative paths.
-8. `undefined` is never written to an element (write-skip) — if a getter returns `undefined`, `<wcs-fetch>` stays silent. The url same-value guard prevents re-fetching the same URL.
+8. `undefined` is never written to an element (write-skip) — if a getter returns `undefined`, `<wcs-fetch>` stays silent. The auto-fetch guard compares against the last url **actually fetched**, and a state that fetches nothing (empty/`undefined` url) does not update it: leaving a detail route and coming straight back to the same id re-enters with the same url and is **skipped**. Use `command.fetch` when a genuine re-run is wanted.
 9. Autoloader load failures are not retried.
+10. Route guards require `script-src blob:` under a CSP and have no external-file form (§4).
