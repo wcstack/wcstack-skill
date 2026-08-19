@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v1.26.0.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v1.27.0.
 
 ## 1. CDN Loading
 
@@ -21,13 +21,13 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.26.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.27.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
 `dist/auto.min.js` is a **self-contained bundle with zero static imports**, so the usual ESM caveat — `integrity` covers the entry but not what it imports — does not apply: one hash covers every line of wcstack that runs. Rules that make it work:
 
-- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@1.26.0/dist/auto.min.js` is a 200).
+- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@1.27.0/dist/auto.min.js` is a 200).
 - **`crossorigin` is not needed** — `type="module"` is always fetched in CORS mode.
 - **Get digests from the GitHub Release** (a table in the body, plus a machine-readable `sri.json` asset), computed from the published tree. Never from jsDelivr's data API: the point of SRI is not trusting the CDN, so letting it self-report is circular.
 - **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. `dist/index.esm.min.js` is no longer published (v1.26); named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127 / Safari 18; not Firefox).
@@ -249,17 +249,28 @@ this["user.name"] = "Bob";   // ✅ path assignment → DOM update
 this.user.name = "Bob";      // ❌ runtime ignores it; lint warns
 ```
 
-## 7. Filters (fixed at 40 built-ins; no custom registration API)
+## 7. Filters (fixed at 46 built-ins; no custom registration API)
 
 - Comparison: `eq` `ne` `not` `lt` `le` `gt` `ge`
-- Arithmetic: `inc` `dec` `mul` `div` `mod`
-- Number formatting: `fix` `round` `floor` `ceil` `locale` `percent`
-- String: `uc` `lc` `cap` `trim` `slice` `substr` `pad` `rep` `rev`
+- Arithmetic: `inc` `dec` `mul` `div` `mod` `abs` `clamp` (v1.27+)
+- Number formatting: `fix` `round` `floor` `ceil` `locale` `percent` `unit` (v1.27+)
+- String: `uc` `lc` `cap` `trim` `slice` `substr` `pad` `rep` `rev` `truncate` `join` (v1.27+)
 - Type conversion: `int` `float` `boolean` `number` `string` `null`
-- Date: `date` `time` `datetime` `ymd`
+- Date: `date` `time` `datetime` `ymd` `hms` (v1.27+)
 - Truthy/default: `truthy` `falsy` `defaults`
 
 With arguments: `gt(10)`, `substr(0,10)`, `pad(5,0)`, `locale(ja-JP)`, `ymd(/)`, `eq('admin')` (quotes allowed, bare allowed, comma-separated). Chaining: `price|mul(1.1)|round(2)|locale(ja-JP)`. Do transformations the built-ins cannot express in a getter.
+
+Contracts of the six v1.27 additions:
+
+- `abs` — `Math.abs`; number input required.
+- `clamp(min, max)` — both arguments required; saturates into `[min, max]`. Same family as `round`/`floor`: a wire conversion, so it belongs on the binding, not in state.
+- `unit(u)` — appends any suffix: `width|unit(px)` → `"40px"`. **Accepts strings as well as numbers on purpose** — the useful chains run through `fix`/`percent`, which return strings. `null`/`undefined` pass through untouched (never `"undefinedpx"`), so "undefined skips the write, null clears" survives the filter. The canonical style-binding chain that keeps presentation out of state: `style.height: samples.*.cpu|clamp(0,100)|fix(0)|unit(%)`.
+- `join(sep?)` — array → string; default separator is `", "` (a bare `","` is what `String()` already does, which would make `|join` a no-op).
+- `truncate(n, suffix?)` — `n` counts **kept characters** (matching the `slice(0, n)` reading), suffix defaults to `…`; a string at or below the limit is returned untouched.
+- `hms(sep?)` — the counterpart of `ymd`: fixed zero-padded `HH:MM:SS` from a Date, locale-independent, separator defaults to `:` — for when locale-formatted `time` is not stable enough.
+
+**Argument trimming is outside-quotes only (fixed in v1.27).** Whitespace inside quotes is literal: `pad(5, ' ')` pads with a space and `join(' / ')` works. On ≤1.26 the quoted whitespace was stripped too — `pad(5, ' ')` silently became a no-op — so if you must target an older CDN pin, avoid whitespace-bearing filter arguments.
 
 ## 8. Event Handling
 
@@ -368,17 +379,58 @@ export default {
 - Right-side filters are an **error**. `@stateName` propagates. Elements without a wcBindable declaration are an **error**.
 - `undefined` state paths are write-skipped for the property (the element default survives). Clear by assigning `null`.
 
-## 10. Other Features
+## 10. `$watch` — headless change subscription (v1.27+)
+
+`$updatedCallback` is binding-driven: a value nothing renders is invisible to it. **`$watch` fires on state changes whether or not the path has a DOM binding** — it is the state-only watcher that did not exist before v1.27.
+
+```javascript
+export default {
+  isLoading: false,
+  items: [],
+  $listKeys: { items: "id" },          // required for the row watch below to be headless
+  $watch: {
+    // edge detection is yours: compare cur/prev in the handler
+    isLoading(cur, prev) {
+      if (cur === true && prev === false) { this.startedAt = Date.now(); }
+    },
+    // wildcard paths fire once per changed row; trailing args are this scope's indexes
+    "items.*.price"(cur, prev, index) {
+      this.lastPriceChange = `#${index}: ${prev} → ${cur}`;
+    },
+  },
+};
+```
+
+- **Handler contract**: `(cur, prev, ...indexes)`, `this` = **writable** state proxy (writes land in the next update batch); the return value is ignored and never awaited. `cur` is the settled value at drain time; `prev` is the value at the start of the batch (first-write-wins).
+- **`prev` is scalar-only** — it reuses the old value the same-value guard already reads (zero extra cost), so it is `undefined` for reference types, for `$postUpdate`, and when `config.sameValueGuard` is off.
+- **No firing condition of its own**: it fires for whatever landed in the batch. Equal primitive writes are already dropped before enqueue (effectively change-only firing), but a `semantics: "event"` occurrence write is *not* dropped and fires with `cur === prev`.
+- **Watching a getter makes it eager**: evaluated once at connect and again at the end of every batch touching its dependencies (`prev` = previous evaluation) — an unrendered computed can now fire. You pay that evaluation per batch, and exceptions inside the getter surface through the watch. **Wildcard getters (`items.*.tax`) are not made eager** (priming would sweep the whole list): that form fires only when also DOM-bound, and its `prev` is always `undefined`.
+- **Ordering**, three fixed layers, only the middle one yours: mechanisms `$updatedCallback` → `$watch` → `$streams` restart; between handlers, declaration order in `$watch`; between rows of one path, ascending indexes.
+
+Key rules (each of these fails silently or surprisingly if ignored):
+
+1. **Own state only** — a key may not carry `@stateName`; cross-state watching is rejected at declaration time.
+2. **A key cannot start with `$`** — so `$streamStatus.<name>` / `$streamError.<name>` cannot be watched directly. The idiom: mirror through a one-line non-`$` getter (`get streamStatus() { return this["$streamStatus.pageResult"]; }`) and watch that — the eager-getter rule is exactly what makes it work unrendered. This is the v1.27 canonical commit boundary for `$streams` (see `io-node-catalog.md`, the intersect-scroll recipe).
+3. **Intermediate values are not observable** — a batch `a → b → c` fires once with `cur = c`, `prev = a` (same contract as binding updates).
+4. **A headless wildcard row watch requires `$listKeys`** — path expansion is driven by the list's `for` binding, and declaring a watch deliberately does not register the path as a list. With neither a rendered `for` nor `$listKeys`, assigning the array fires the row watch **zero** times. And without `$listKeys`, a whole-array assignment fires **every** row with `prev === undefined`; with it, the key match decomposes into per-field writes, so only changed rows fire and `prev` is a real scalar. Scalar paths (including nested `user.name`) are headless with no such condition.
+5. **Handler exceptions are isolated** — reported to the console (and the devtools timeline as `state:watch-error`), remaining watches and stream restarts still run. This differs from `$connectedCallback`/`$updatedCallback`, which fail loudly.
+6. **Write chains are bounded at 32 links** — a handler's writes form a new batch; mutually-writing watches are cut off with a console error (`state:watch-chain-limit` in devtools). Nothing is rolled back.
+7. **Not available on a mapped `bind-component` child** — the mapping proxy blanks every `$`-prefixed property, so the declaration silently never arrives (same for `$streams`). Declare on the host state, or use a plain (unmapped) child.
+8. **SSR never runs watches** — otherwise handler side effects would execute on both server and client.
+
+Tooling knows the declaration (v1.27): `@wcstack/lint` and the VS Code extension validate it — `wcs/watch-declaration-invalid` (error: `@` cross-state key, `$`-prefixed key, empty path segment, non-function handler) and `wcs/watch-path-missing` (warning: the key does not exist in the state definition — unlike a binding typo, which visibly fails to render, a `$watch` typo silently never fires).
+
+## 11. Other Features
 
 - **Lifecycle**: On the state object: `$connectedCallback` (async allowed, awaited, runs on every reconnection), `$disconnectedCallback` (sync only), `$updatedCallback(paths, indexesListByPath)` (async allowed, not awaited). On the Web Component side: `async $stateReadyCallback(stateProp)`.
-- **`$updatedCallback` is binding-driven, not write-driven** (spelled out in v1.26): `paths` lists only the paths whose **live DOM bindings** were applied in that drain. A state write with no binding never calls it and never appears in `paths`. So it cannot be used as a headless watcher — a `$streams` value you want to observe there must actually be bound somewhere in the DOM. There is no state-only `$watch` / `$effects` declaration in the current API.
+- **`$updatedCallback` is binding-driven, not write-driven** (spelled out in v1.26): `paths` lists only the paths whose **live DOM bindings** were applied in that drain. A state write with no binding never calls it and never appears in `paths`. So it cannot be used as a headless watcher — that job belongs to `$watch` (§10, v1.27+), which fires with no binding at all.
 - **A failure during binding initialization now rejects instead of hanging** (v1.26): `State.getBindingsReady()` used to stay pending forever if `buildBindings` / `hydrateBindings` threw — the symptom was a silent hang at `await`, not an error. It now rejects to the caller. The same reject is plumbed through `_connectedCallbackPromise`, so an `enable-ssr` block that fails makes `renderToString()` return an error and release its mutex instead of wedging.
-- **$streams**: `$streams: { name: { args?, source, fold?, initial? } }` — source is `(args, signal) => AsyncIterable|ReadableStream|Promise<same>`, honoring AbortSignal is mandatory, `initial` is required when `fold` is specified. status/error: `$streamStatus.<name>` (`"idle"|"active"|"done"|"error"`) / `$streamError.<name>`. args are synchronous, cannot read wildcards, self-dependency forbidden. Infinite streams require a bounded fold. **Bridging callback APIs (EventSource / WebSocket / DOM events) — v1.22+ canonical form**: wrap in a `ReadableStream` (enqueue in `start`, release the resource in `cancel()`); the runtime cancels the reader on restart/dispose, so the AbortSignal contract is satisfied automatically. Hand-written async generators must watch `signal` themselves — a generator parked on `await` cannot be force-released from outside.
+- **$streams**: `$streams: { name: { args?, source, fold?, initial? } }` — source is `(args, signal) => AsyncIterable|ReadableStream|Promise<same>`, honoring AbortSignal is mandatory, `initial` is required when `fold` is specified. status/error: `$streamStatus.<name>` (`"idle"|"active"|"done"|"error"`) / `$streamError.<name>`. args are synchronous, cannot read wildcards, self-dependency forbidden. Infinite streams require a bounded fold. **Bridging callback APIs (EventSource / WebSocket / DOM events) — v1.22+ canonical form**: wrap in a `ReadableStream` (enqueue in `start`, release the resource in `cancel()`); the runtime cancels the reader on restart/dispose, so the AbortSignal contract is satisfied automatically. Hand-written async generators must watch `signal` themselves — a generator parked on `await` cannot be force-released from outside. **Observing a stream without rendering it (v1.27+)**: `$watch` its value path — or, for status-driven work, mirror `$streamStatus.<name>` through a non-`$` getter and watch that (§10 rule 2). A mapped `bind-component` child cannot declare `$streams` (same blanking as `$watch`).
 - **Configuration**: `bootstrapState({ locale, debug, enableMustache, bindAttributeName, tagNames: { state }, enableDirectionalInitialSync, enablePropagationContext, enableContractAnalyzer })`.
 - **TypeScript**: Wrap with `defineState({...})` for `this` type completion (zero runtime cost).
 - **SSR**: `<wcs-state enable-ssr>` + `renderToString()` from `@wcstack/server`.
 
-## 11. Component mechanisms — DCC vs `bind-component` (they are exclusive, v1.26)
+## 12. Component mechanisms — DCC vs `bind-component` (they are exclusive, v1.26)
 
 Two mechanisms give a custom element its own state, and v1.26 made the choice **normative and mutually exclusive** — pick one per component; combining them is an error, and putting `<wcs-state bind-component>` inside a `data-wc-definition` host is a misconfiguration (DCC state belongs to the template and is loaded per instance).
 
@@ -433,7 +485,16 @@ this.shadowRoot.innerHTML = `
   </template></ul>`;
 ```
 
-The outer state stays the source of truth: replacing `rows` wholesale, or writing a single row field (`rows.0.name`), both reach the component's rows, and writing `items.*.name` back from inside reaches the host's `rows`. v1.26 also lifted the nesting restriction — the component may itself sit inside the host's `for` and still run its own `for` (`state.items: groups.*.children`), which before v1.26 hung silently instead of failing. Loop indexes stay **scope-local**: `$1`, event-handler indexes, `$updatedCallback` and `$getAll` all report the position within the component's own scope, so a component can be written without knowing whether it will be placed inside a list. (`packages/state/README.ja.md` still carries the pre-fix "not supported" note for this nested case — the design record `docs/state-bind-component-nested-for-design.md` and ADR-15 §1.10 are the current word.)
+The outer state stays the source of truth: replacing `rows` wholesale, or writing a single row field (`rows.0.name`), both reach the component's rows, and writing `items.*.name` back from inside reaches the host's `rows`. v1.26 lifted the single-boundary nesting restriction (a component inside the host's `for` running its own `for` over `state.items: groups.*.children` — which before v1.26 hung silently), and **v1.27 extended it to arbitrary depth and stacking**: components placed inside components stack scopes, the base list index composes across every boundary, and an intermediate component that only passes the array through — running no `for` of its own — still delivers a row-field write from the owning scope to the rows at the bottom. Loop indexes stay **scope-local** throughout: `$1`, event-handler indexes, `$updatedCallback` and `$getAll` all report the position within the component's own scope, so a component's author never has to know how deeply it is placed. Both READMEs now document this as "nesting and stacking scopes" (the old "not supported" note is gone as of v1.27).
+
+Two capabilities the mapping proxy removes from a **mapped** child (a plain, unmapped child keeps them): `$watch` and `$streams` declarations are blanked and silently never arrive — declare them on the host state (§10 rule 7).
+
+### `bind-component` in Light DOM (works as of v1.27)
+
+Binding a **Light DOM** component from the host — `<my-light-component data-wcs="state.message: user.name">` with `<wcs-state bind-component name="my-light">` as a direct child of the component element — used to deadlock (neither `initializePromise` nor `getBindingsReady` ever resolved). v1.27 treats the mapped Light DOM component as **its own binding scope**, so the host form now works just as it does for Shadow DOM. The constraints that remain are structural, not bugs:
+
+- **Two instances carrying the same state `name` cannot live in one scope** — Light DOM shares its namespace with the parent scope. A component stamped on every row of a `for` therefore needs Shadow DOM.
+- **`State.getBindingsReady(root)` does not cover the component's scope** — the same contract as the Shadow DOM form, where the child lives in a different rootNode. Await the component's own `<wcs-state>` initialization when you need its contents rendered.
 
 ## Pitfall Checklist
 
@@ -448,12 +509,15 @@ The outer state stays the source of truth: replacing `rows` wholesale, or writin
 9. `$streams` sources must not ignore AbortSignal (ReadableStream sources satisfy this automatically via `cancel()`; only hand-written async iterables must watch `signal`).
 10. Do not forget the trailing colon on `else:`.
 11. Duplicate entries in `$commandTokens`/`$eventTokens` and undeclared keys in `$on` are initialization-time errors. Accessing an undeclared token (`this.$command.typo`) yields `undefined`.
-12. There is no custom filter registration API — do transformations the 40 built-ins cannot express in a getter.
+12. There is no custom filter registration API — do transformations the 46 built-ins cannot express in a getter.
 13. The only valid separator for multiple bindings in `data-wcs` is `;`.
 14. A property binding is same-value guarded: an `Object.is`-equal primitive write is skipped entirely (no dependency walk, no DOM apply, no `$updatedCallback`). Take repetition from the event-token surface — or from an I/O-node property declared `semantics: "event"`, which is exempt as of v1.24.
 15. `$on` handlers are never awaited. An async handler's rejection is reported via `console.error` (v1.24+), not propagated — do not sequence work on it.
 16. Under a strict CSP the default state form (inner `<script type="module">`) is blocked — it is imported through a `blob:` URL and the page nonce does not carry over. Move the state to `src="./state.js"`, or open `script-src blob:` knowingly.
-17. `$updatedCallback` reports only paths whose live DOM bindings were applied. It is not a headless watcher; an unbound write never reaches it.
+17. `$updatedCallback` reports only paths whose live DOM bindings were applied. It is not a headless watcher; an unbound write never reaches it — declare `$watch` (v1.27+, §10) for that.
 18. A `$listKeys` key is the **list path itself** — `"items"` or the nested `"items.*.children"`, never a path ending in `*` (`"items.*"` is rejected). Rows must be plain objects with keys that exist and are unique; a duplicate/missing key or a class instance raises rather than degrading. Remember `this.items !== theArrayYouAssigned` afterwards.
 19. DCC and `bind-component` are mutually exclusive per component; a duplicate entry in `$bindables` / `$commands` is an error (it used to silently disable the element's binding surface).
-20. `State.getBindingsReady()` rejects on a binding-init failure as of v1.26 — if you `await` it, handle the rejection. (Before v1.26 the same failure hung forever, so an old workaround built around a timeout can be deleted.)
+20. `State.getBindingsReady()` rejects on a binding-init failure as of v1.26 — if you `await` it, handle the rejection. (Before v1.26 the same failure hung forever, so an old workaround built around a timeout can be deleted.) It never covers a `bind-component` child's scope — Shadow or Light DOM — so await the component's own `<wcs-state>` when its contents matter.
+21. `$watch` keys are own-state paths only: no `@stateName`, no `$`-prefix. To react to `$streamStatus.<name>`, mirror it through a non-`$` getter and watch that (the watched getter turns eager, so it evaluates even unrendered).
+22. A headless wildcard row watch fires **zero** times without `$listKeys` or a rendered `for`; and without `$listKeys`, a whole-array assignment fires every row with `prev === undefined`. `prev` is scalar-only in all cases.
+23. `$watch` handler exceptions are isolated (console + devtools, remaining watches still run), write chains are cut at 32 links, and SSR never runs watches. Mapped `bind-component` children cannot declare `$watch`/`$streams` at all — the declaration silently never arrives.
