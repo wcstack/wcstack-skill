@@ -84,6 +84,7 @@ Two shapes that sit outside those four forms:
 
 ### 5. Server and verification
 
+- **The lint loop is a completion gate, not a suggestion (MUST).** Do not present the app as finished until `npx @wcstack/lint --errors-only <every html file> <sidecars>` exits `0`. The loop is generate → lint → fix → re-lint; wcstack's whole failure model is "wrong wiring fails silently" (see the matrix below), so a page you have only eyeballed is unverified by definition. If lint cannot run (offline, no npx), say so explicitly instead of skipping it silently.
 - **Lint every generated HTML file before browser testing**. During authoring, keep warnings visible:
 
   ```bash
