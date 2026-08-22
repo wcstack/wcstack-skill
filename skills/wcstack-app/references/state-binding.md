@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v1.27.0.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v1.29.0.
 
 ## 1. CDN Loading
 
@@ -21,13 +21,13 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.27.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.29.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
 `dist/auto.min.js` is a **self-contained bundle with zero static imports**, so the usual ESM caveat — `integrity` covers the entry but not what it imports — does not apply: one hash covers every line of wcstack that runs. Rules that make it work:
 
-- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@1.27.0/dist/auto.min.js` is a 200).
+- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@1.29.0/dist/auto.min.js` is a 200).
 - **`crossorigin` is not needed** — `type="module"` is always fetched in CORS mode.
 - **Get digests from the GitHub Release** (a table in the body, plus a machine-readable `sri.json` asset), computed from the published tree. Never from jsDelivr's data API: the point of SRI is not trusting the CDN, so letting it self-report is circular.
 - **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. `dist/index.esm.min.js` is no longer published (v1.26); named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127 / Safari 18; not Firefox).
@@ -209,6 +209,8 @@ this.items = await (await fetch("/api/items")).json();
 ```
 
 `else:` **requires the trailing colon** (no right side). Nested `if` is allowed.
+
+**A structural binding must be the only binding in its `data-wcs`.** `for` / `if` / `elseif` / `else` sharing the attribute with anything else (`data-wcs="for: items; class.on: x"`) raises `[wcs/template-syntax]` at parse time and takes the page down; put the other bindings on elements inside the template. Lint checks the same shape as of v1.29.
 
 ## 6. computed (path getters) and the Proxy API
 
@@ -418,7 +420,7 @@ Key rules (each of these fails silently or surprisingly if ignored):
 7. **Not available on a mapped `bind-component` child** — the mapping proxy blanks every `$`-prefixed property, so the declaration silently never arrives (same for `$streams`). Declare on the host state, or use a plain (unmapped) child.
 8. **SSR never runs watches** — otherwise handler side effects would execute on both server and client.
 
-Tooling knows the declaration (v1.27): `@wcstack/lint` and the VS Code extension validate it — `wcs/watch-declaration-invalid` (error: `@` cross-state key, `$`-prefixed key, empty path segment, non-function handler) and `wcs/watch-path-missing` (warning: the key does not exist in the state definition — unlike a binding typo, which visibly fails to render, a `$watch` typo silently never fires).
+Tooling knows the declaration (v1.27): `@wcstack/lint` and the VS Code extension validate it — `wcs/watch-declaration-invalid` (error: `@` cross-state key, `$`-prefixed key, empty path segment, non-function handler, and — v1.29 — a whole `$watch` value that is definitely not an object) and `wcs/watch-path-missing` (warning: the key does not exist in the state definition — unlike a binding typo, which visibly fails to render, a `$watch` typo silently never fires). Since v1.28 the runtime's own declaration errors carry the same `[wcs/watch-declaration-invalid]` code plus a lint pointer, so console and CLI speak one vocabulary. And v1.29 makes firing measurable: the runtime emits `state:watch-fired`, which the devtools coverage tab joins against the declared `$watch` keys — each path shows *fired ×N*, *never*, or *prerequisite-missing* (a wildcard whose list is not `for`-bound, distinguished from "never" so the view does not cry wolf).
 
 ## 11. Other Features
 
@@ -426,6 +428,8 @@ Tooling knows the declaration (v1.27): `@wcstack/lint` and the VS Code extension
 - **`$updatedCallback` is binding-driven, not write-driven** (spelled out in v1.26): `paths` lists only the paths whose **live DOM bindings** were applied in that drain. A state write with no binding never calls it and never appears in `paths`. So it cannot be used as a headless watcher — that job belongs to `$watch` (§10, v1.27+), which fires with no binding at all.
 - **A failure during binding initialization now rejects instead of hanging** (v1.26): `State.getBindingsReady()` used to stay pending forever if `buildBindings` / `hydrateBindings` threw — the symptom was a silent hang at `await`, not an error. It now rejects to the caller. The same reject is plumbed through `_connectedCallbackPromise`, so an `enable-ssr` block that fails makes `renderToString()` return an error and release its mutex instead of wedging.
 - **$streams**: `$streams: { name: { args?, source, fold?, initial? } }` — source is `(args, signal) => AsyncIterable|ReadableStream|Promise<same>`, honoring AbortSignal is mandatory, `initial` is required when `fold` is specified. status/error: `$streamStatus.<name>` (`"idle"|"active"|"done"|"error"`) / `$streamError.<name>`. args are synchronous, cannot read wildcards, self-dependency forbidden. Infinite streams require a bounded fold. **Bridging callback APIs (EventSource / WebSocket / DOM events) — v1.22+ canonical form**: wrap in a `ReadableStream` (enqueue in `start`, release the resource in `cancel()`); the runtime cancels the reader on restart/dispose, so the AbortSignal contract is satisfied automatically. Hand-written async generators must watch `signal` themselves — a generator parked on `await` cannot be force-released from outside. **Observing a stream without rendering it (v1.27+)**: `$watch` its value path — or, for status-driven work, mirror `$streamStatus.<name>` through a non-`$` getter and watch that (§10 rule 2). A mapped `bind-component` child cannot declare `$streams` (same blanking as `$watch`).
+- **Runtime errors carry self-fix guidance (v1.28+)**: a misspelled filter, an `eventToken.` name missing from `$eventTokens`, a bad `$watch` shape, or a DCC `$bindables` / `$commands` name that does not exist raises with a stable `[wcs/...]` code, a did-you-mean candidate (edit distance ≤ 2, the same criterion the lint CLI uses; DCC suggestions are split by kind, so a `$commands` typo only suggests methods), and a pointer to `npx @wcstack/lint` — attached only where lint detects the same case, so the hint never leads to a clean run. Existing error text is preserved; guidance is appended.
+- **The binding grammar is machine-readable (v1.28+)** — tooling-facing, never needed in app code: `@wcstack/state/manifest` (and `dist/wcs-manifest.json`) now carries the complete vocabulary — modifiers (`prevent`/`stop`/`ro`, `init`/`sync`, the `on` event prefix), the `$1..$N` index params, and every binding type — and the new `@wcstack/state/parser` subpath exposes the canonical binding parser (DOM-free and pure; no position info; invalid syntax throws). This is the parser the lint CLI, the VS Code extension, and devtools all consume as of v1.29, so their diagnostics cannot drift from the runtime.
 - **Configuration**: `bootstrapState({ locale, debug, enableMustache, bindAttributeName, tagNames: { state }, enableDirectionalInitialSync, enablePropagationContext, enableContractAnalyzer })`.
 - **TypeScript**: Wrap with `defineState({...})` for `this` type completion (zero runtime cost).
 - **SSR**: `<wcs-state enable-ssr>` + `renderToString()` from `@wcstack/server`.
@@ -521,3 +525,5 @@ Binding a **Light DOM** component from the host — `<my-light-component data-wc
 21. `$watch` keys are own-state paths only: no `@stateName`, no `$`-prefix. To react to `$streamStatus.<name>`, mirror it through a non-`$` getter and watch that (the watched getter turns eager, so it evaluates even unrendered).
 22. A headless wildcard row watch fires **zero** times without `$listKeys` or a rendered `for`; and without `$listKeys`, a whole-array assignment fires every row with `prev === undefined`. `prev` is scalar-only in all cases.
 23. `$watch` handler exceptions are isolated (console + devtools, remaining watches still run), write chains are cut at 32 links, and SSR never runs watches. Mapped `bind-component` children cannot declare `$watch`/`$streams` at all — the declaration silently never arrives.
+24. A structural binding (`for` / `if` / `elseif` / `else`) must be alone in its `data-wcs` — sharing the attribute with any other binding raises `[wcs/template-syntax]` and takes the page down (lint-checked as of v1.29).
+25. A `[wcs/...]`-prefixed runtime error means the lint CLI reproduces the same finding with a source range — run `npx @wcstack/lint` and fix every instance, not just the throwing one.
