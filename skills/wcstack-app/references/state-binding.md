@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v1.29.0.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v1.30.0.
 
 ## 1. CDN Loading
 
@@ -21,13 +21,13 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.29.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.30.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
 `dist/auto.min.js` is a **self-contained bundle with zero static imports**, so the usual ESM caveat — `integrity` covers the entry but not what it imports — does not apply: one hash covers every line of wcstack that runs. Rules that make it work:
 
-- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@1.29.0/dist/auto.min.js` is a 200).
+- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@1.30.0/dist/auto.min.js` is a 200).
 - **`crossorigin` is not needed** — `type="module"` is always fetched in CORS mode.
 - **Get digests from the GitHub Release** (a table in the body, plus a machine-readable `sri.json` asset), computed from the published tree. Never from jsDelivr's data API: the point of SRI is not trusting the CDN, so letting it self-report is circular.
 - **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. `dist/index.esm.min.js` is no longer published (v1.26); named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127 / Safari 18; not Firefox).
@@ -378,7 +378,7 @@ export default {
 - `...: target` wires all wcBindable properties + inputs at once. `commands`/event tokens are excluded (explicit wiring required).
 - Inside for: `...: storesFetches.*` (recommended) or `...: .`.
 - Last-wins override: `...: usersFetch; status: alternateStatus`.
-- Right-side filters are an **error**. `@stateName` propagates. Elements without a wcBindable declaration are an **error**.
+- Right-side filters are an **error**. `@stateName` propagates. Elements without a wcBindable declaration are an **error** — statically caught for the built-in helper tags (`wcs-fetch-header` / `wcs-fetch-body` / `wcs-infinite-scroll` / `wcs-voice`) as `wcs/spread-no-bindable` since v1.30. An empty-but-declared contract (`wcs-noise`) is legal: it expands to zero props.
 - `undefined` state paths are write-skipped for the property (the element default survives). Clear by assigning `null`.
 
 ## 10. `$watch` — headless change subscription (v1.27+)
@@ -420,7 +420,7 @@ Key rules (each of these fails silently or surprisingly if ignored):
 7. **Not available on a mapped `bind-component` child** — the mapping proxy blanks every `$`-prefixed property, so the declaration silently never arrives (same for `$streams`). Declare on the host state, or use a plain (unmapped) child.
 8. **SSR never runs watches** — otherwise handler side effects would execute on both server and client.
 
-Tooling knows the declaration (v1.27): `@wcstack/lint` and the VS Code extension validate it — `wcs/watch-declaration-invalid` (error: `@` cross-state key, `$`-prefixed key, empty path segment, non-function handler, and — v1.29 — a whole `$watch` value that is definitely not an object) and `wcs/watch-path-missing` (warning: the key does not exist in the state definition — unlike a binding typo, which visibly fails to render, a `$watch` typo silently never fires). Since v1.28 the runtime's own declaration errors carry the same `[wcs/watch-declaration-invalid]` code plus a lint pointer, so console and CLI speak one vocabulary. And v1.29 makes firing measurable: the runtime emits `state:watch-fired`, which the devtools coverage tab joins against the declared `$watch` keys — each path shows *fired ×N*, *never*, or *prerequisite-missing* (a wildcard whose list is not `for`-bound, distinguished from "never" so the view does not cry wolf).
+Tooling knows the declaration (v1.27): `@wcstack/lint` and the VS Code extension validate it — `wcs/watch-declaration-invalid` (error: `@` cross-state key, `$`-prefixed key, empty path segment, non-function handler, and — v1.29 — a whole `$watch` value that is definitely not an object) and `wcs/watch-path-missing` (warning: the key does not exist in the state definition — unlike a binding typo, which visibly fails to render, a `$watch` typo silently never fires). Since v1.28 the runtime's own declaration errors carry the same `[wcs/watch-declaration-invalid]` code plus a lint pointer, so console and CLI speak one vocabulary. And v1.29 makes firing measurable: the runtime emits `state:watch-fired`, which the devtools coverage tab joins against the declared `$watch` keys — each path shows *fired ×N*, *never*, or *prerequisite-missing*, distinguished from "never" so the view does not cry wolf. Since v1.30 the prerequisite check is exact — a wildcard's list counts as satisfied when it is `for`-bound **or** `$listKeys`-declared (the same two conditions rule 4 above states for headless firing), and when neither holds the note says assertively: "this watch can never fire".
 
 ## 11. Other Features
 
