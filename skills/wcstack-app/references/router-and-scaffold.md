@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v1.30.0.
+Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v1.31.0.
 
 ## 1. Minimal SPA scaffold
 
@@ -20,7 +20,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/router@1.30.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@1.31.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -268,7 +268,8 @@ export default class UiButton extends HTMLElement {
 ```
 
 - The `is` attribute (customized built-ins) is also auto-detected (the autoloader defines with `{ extends }`).
-- Components that fail to load are not retried (failure detection is the responsibility of `@wcstack/defined`). Dynamically added elements are also detected via MutationObserver.
+- Components that fail to load are not retried (failure detection is the responsibility of `@wcstack/defined`). Dynamically added elements are also detected via MutationObserver. **v1.31 fixed the wedge around this**: a failed lazy load used to leave every later waiter parked on a `whenDefined()` that could never settle — one broken component silently disabled lazy loading for the rest of the page's life. Waiters now await the load promise itself, which settles on success *or* failure.
+- **Scoped custom element registries (Chrome/Edge 146+, Safari 26+) are supported as of v1.31**: lazy loading defines into the scanned root's own registry, the in-flight ledger is per registry, and a root whose registry is explicitly `null` is reported instead of silently skipped. On platforms without the feature, behavior is byte-for-byte unchanged. (The same registry resolution applies across wcstack: `<wcs-defined>` watches the registry its subtree resolves against — tags with no governing registry report `missing` immediately rather than pending forever — and every package's `registerComponents(registry?)` can define into a scoped registry; see `docs/scoped-custom-element-registries.md`.)
 - **Under a CSP the inline import map needs a `nonce`** (`<script type="importmap" nonce="{RANDOM}">`) — being inline, it cannot take `integrity` — and `script-src` must allow whatever host `@components/` resolves to. Autoloaded components are page-supplied code, so they are outside the wcstack bundle's `integrity` coverage; hash them yourself if that matters.
 
 ## 7. Full index.html structure of the real demo (actual examples/router-spa skeleton)
@@ -402,5 +403,5 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 6. A type mismatch is not an error but "no match" — `/products/abc` passes through `:productId(int)` and falls to the fallback.
 7. Relative paths cannot be written on top-level routes. Nested routes use relative paths.
 8. `undefined` is never written to an element (write-skip) — if a getter returns `undefined`, `<wcs-fetch>` stays silent. The auto-fetch guard compares against the last url **actually fetched**, and a state that fetches nothing (empty/`undefined` url) does not update it: leaving a detail route and coming straight back to the same id re-enters with the same url and is **skipped**. Use `command.fetch` when a genuine re-run is wanted.
-9. Autoloader load failures are not retried.
+9. Autoloader load failures are not retried. (Before v1.31 a failed load additionally wedged every later lazy load on the page; fixed — waiters now settle on failure too.)
 10. Route guards require `script-src blob:` under a CSP and have no external-file form (§4).
