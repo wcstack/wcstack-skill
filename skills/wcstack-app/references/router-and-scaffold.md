@@ -202,7 +202,8 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 ```
 
 - Converted to an `<a>`. If `to` starts with `/`, it is a route path (basename auto-prepended); otherwise it is treated as an external URL.
-- The `active` CSS class is automatically applied on current-location match: `a.active { font-weight: bold; }`
+- The `active` CSS class is automatically applied on current-location match: `a.active { font-weight: bold; }` — and (v1.32+) `aria-current="page"` is set/removed alongside it.
+- **Attribute forwarding (v1.32+)**: at anchor creation, all `aria-*` attributes plus `title` / `rel` / `target` / `download` / `hreflang` are copied from the host to the generated `<a>`; only the fixed five keep tracking later changes. **Dynamic `aria-*` never reaches the anchor — including `data-wcs="attr.aria-label: …"` on the wcs-link itself** (the binder writes the host after the copy). Write `aria-*` on `<wcs-link>` as static attributes.
 
 ### Programmatic navigation
 
@@ -225,6 +226,14 @@ export default {
 
 - `navigateUrl` is **self-resetting**: the router sets it back to `null` when navigation completes, so re-assigning the same path navigates again.
 - `path` is output-only, so never write it back from state (the router is the authority. The current value is read when the binding is established, so deep links are never missed).
+
+### Accessibility (v1.32+: scroll repair + opt-in focus / announce)
+
+- Scroll and focus reset follow the Navigation API defaults (push scrolls to top, traverse restores, focus resets to `[autofocus]` / body). The pushState fallback path matches: scroll-to-top after a **committed** push; a guard-rejected navigation does nothing; `popstate` never scrolls (the browser's `scrollRestoration` owns traverse). Nothing to configure.
+- Opt-in policies on `<wcs-router>` (both inert on first render and on guard rejection):
+  - `focus="heading"` — after a committed navigation, focuses the first `h1`–`h6` of the **leaf** route's content (adds `tabindex="-1"` if needed). No heading → nothing happens, so give every route a heading when you opt in.
+  - `announce="title"` — writes the commit-time `document.title` into a router-owned `role="status"` live region. Pair it with `<wcs-head><title>` per route. A bound title (`<title data-wcs>`) may still be stale at commit; title changes outside navigation are not re-announced.
+- Recommended default for an SPA scaffold: `<wcs-router focus="heading" announce="title">` plus one `<h1>` and one `<wcs-head><title>` per route.
 
 ## 6. autoloader
 
