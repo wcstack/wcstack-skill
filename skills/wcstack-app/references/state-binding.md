@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v1.31.0.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v1.32.0.
 
 ## 1. CDN Loading
 
@@ -21,13 +21,13 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.31.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.32.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
 `dist/auto.min.js` is a **self-contained bundle with zero static imports**, so the usual ESM caveat — `integrity` covers the entry but not what it imports — does not apply: one hash covers every line of wcstack that runs. Rules that make it work:
 
-- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@1.31.0/dist/auto.min.js` is a 200).
+- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@1.32.0/dist/auto.min.js` is a 200).
 - **`crossorigin` is not needed** — `type="module"` is always fetched in CORS mode.
 - **Get digests from the GitHub Release** (a table in the body, plus a machine-readable `sri.json` asset), computed from the published tree. Never from jsDelivr's data API: the point of SRI is not trusting the CDN, so letting it self-report is circular.
 - **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. `dist/index.esm.min.js` is no longer published (v1.26); named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127 / Safari 18; not Firefox).
@@ -65,7 +65,7 @@ Resolution order: `state` attribute → `src` (.json/.js) → `json` attribute �
 </script>
 ```
 
-`<wcs-state>` attributes: `name` (state name, default `"default"`) / `state` / `src` / `json` / `bind-component` (Web Component binding) / `enable-ssr`.
+`<wcs-state>` attributes: `name` (state name, default `"default"`) / `state` / `src` / `json` / `bind-component` (Web Component binding) / `enable-ssr`. As of v1.32, `src` resolves against the **document base URL** — so with `<base href="/ja/">` (the i18n basename pattern), `src="./state.js"` fetches `/ja/state.js`.
 
 ### Under a Content-Security-Policy the load path decides the directives (v1.26 docs)
 
@@ -253,12 +253,30 @@ Path getters are **lazy**; "does this getter run?" depends on where demand comes
 
 | API | Description |
 |---|---|
-| `this.$getAll(path, indexes?)` | Get all values of a wildcard path as an array (for aggregation). Partial index specification allowed: `this.$getAll("regions.*.states.*.population", [this.$1])` — fewer indexes than `*` levels is a legitimate prefix ("expand the rest"); **more throws `wcs/index-arity`** (v1.31; earlier versions silently dropped the surplus and returned a plausible wrong value) |
+| `this.$getAll(path, indexes?)` | Get all values of a wildcard path as an array (for aggregation). `indexes` is a **prefix** over the path's wildcards — missing levels expand fully, `[]` always means "every match"; **more than the `*` count throws `wcs/index-arity`** (v1.31; earlier versions silently dropped the surplus and returned a plausible wrong value). **Omitting `indexes` entirely defaults to the enclosing loop context** (v1.32) — `this.$getAll("regions.*.prefectures.*.population")` inside a `regions.*` getter narrows to the current region. If the path shares **no** wildcard level with a loop context that holds indexes, `$getAll` **throws** rather than silently reading everything — pass `[]` explicitly for "every match" there |
+| `this.$setAll(path, indexes, value, options?)` | v1.32+: write to **every** address a wildcard path matches, in place — see below |
 | `this.$resolve(path, indexes, value?)` | Read/write at specific indexes. The index count must match the path's `*` count **exactly** (v1.31: `wcs/index-arity`; loop-context-derived indexes when the argument is omitted are deliberately unchecked) |
 | `this.$postUpdate(path)` | Manually emit an update notification |
 | `this.$trackDependency(path)` / `this.$untrackDependency(fn)` | Manually register / suppress dependencies |
 | `this.$stateElement` | IStateElement access |
 | `this.$1`, `this.$2`, ... | Loop indexes |
+
+### `$setAll` — bulk writes that keep the array (v1.32+)
+
+The write-side counterpart of `$getAll`. The point is not brevity but **list identity**: `this.users = this.users.map(...)` throws away list indexes, per-row getter caches, and the render diff; `$setAll` decomposes into in-place per-row writes, so the array survives.
+
+```javascript
+this.$setAll("users.*.selected", [], e.target.checked);            // broadcast (same value everywhere)
+this.$setAll("users.*.selected", [], cur => !cur);                 // mapper: (current, ...indexes)
+this.$setAll("users.*.score", [], (cur, i) => i < 3 ? cur * 2 : undefined);  // undefined = skip this row
+this.$setAll("matrix.*.*", [0], 0);                                // indexes prefix: row 0 only
+this.$setAll("users.*", [], rows, { spread: true });               // one entry per address, in match order
+```
+
+- Three forms: a **function** is a mapper; **anything else broadcasts** (arrays included — the target may itself be array-valued); an array **plus `{ spread: true }`** hands one entry per matched address, and a length mismatch throws rather than misaligning.
+- `undefined` is never written ("skip this address" in all three forms — a mapper that forgets to `return` wipes nothing); use `null` to clear. Returns the number of addresses written.
+- `indexes` is a prefix exactly as in `$getAll` but **required** — writes get no implicit loop context, so inside a `for` template `$setAll("users.*.selected", [], true)` still means *every* user, never the current row.
+- Not a shortcut for the dependency walk: each write is enqueued individually (cost matches the hand-written loop); rendering still coalesces into one batch.
 
 ### Iron rule of state updates
 
@@ -289,6 +307,8 @@ Contracts of the six v1.27 additions:
 - `hms(sep?)` — the counterpart of `ymd`: fixed zero-padded `HH:MM:SS` from a Date, locale-independent, separator defaults to `:` — for when locale-formatted `time` is not stable enough.
 
 **Argument trimming is outside-quotes only (fixed in v1.27).** Whitespace inside quotes is literal: `pad(5, ' ')` pads with a space and `join(' / ')` works. On ≤1.26 the quoted whitespace was stripped too — `pad(5, ' ')` silently became a no-op — so if you must target an older CDN pin, avoid whitespace-bearing filter arguments.
+
+**The default locale is `<html lang>` (BREAKING in v1.32; was `'en'`).** The four locale-dependent filters — `locale`, `date`, `time`, `datetime` — read `config.locale`, which now defaults to `<html lang>`, falling back to `'en'`. Always set `<html lang>`; it is the one way the CDN one-liner can set the locale at all. An explicit `bootstrapState({ locale })` still wins; an invalid BCP-47 tag is reported and ignored. **Changing `config.locale` later re-renders nothing** (it is a global setting, not state) — set the language before the page renders (markup, or a synchronous `<head>` script). Per-call overrides (`price|locale(fr-FR)`) are fixed at bind time. For pages that switch language without reloading, translations belong on a path, not in a filter (`docs/i18n-design.md`).
 
 ## 8. Event Handling
 
@@ -423,7 +443,7 @@ export default {
 - **`prev` is scalar-only** — it reuses the old value the same-value guard already reads (zero extra cost), so it is `undefined` for reference types, for `$postUpdate`, and when `config.sameValueGuard` is off.
 - **No firing condition of its own**: it fires for whatever landed in the batch. Equal primitive writes are already dropped before enqueue (effectively change-only firing), but a `semantics: "event"` occurrence write is *not* dropped and fires with `cur === prev`.
 - **Watching a getter makes it eager**: evaluated once at connect and again at the end of every batch touching its dependencies (`prev` = previous evaluation) — an unrendered computed can now fire. You pay that evaluation per batch, and exceptions inside the getter surface through the watch. **Wildcard getters (`items.*.tax`) are not made eager** (priming would sweep the whole list): that form fires only when also DOM-bound, and its `prev` is always `undefined`.
-- **Ordering**, three fixed layers, only the middle one yours: mechanisms `$updatedCallback` → `$watch` → `$streams` restart; between handlers, declaration order in `$watch`; between rows of one path, ascending indexes.
+- **Ordering**, three fixed layers, only the middle one yours: mechanisms `$updatedCallback` → `$watch` → `$streams` restart; between handlers, declaration order in `$watch`; between rows of one path, ascending indexes. One thing moves the mechanism layer (v1.32): a `<wcs-view-transition>` accepting the `state` participant puts binding application — and with it `$updatedCallback` — on a **frame**, while `$watch` and the `$streams` restart stay on the original microtask, so the order becomes `$watch` → `$streams` restart → `$updatedCallback` while that tag is present (`for="router"` on the tag keeps state's timing untouched).
 
 Key rules (each of these fails silently or surprisingly if ignored):
 
@@ -548,3 +568,5 @@ Binding a **Light DOM** component from the host — `<my-light-component data-wc
 26. Getters read only through `this` — an untracked read (`Date.now()`, the DOM, a module variable) keeps its first value forever. State the input as state, or use `$trackDependency` / `$postUpdate`.
 27. `$resolve` requires the index count to match the path's `*` count exactly; `$getAll` treats it as an upper bound. Surplus indexes throw `wcs/index-arity` as of v1.31 — on older versions they were silently dropped, returning a plausible wrong value.
 28. The non-reactive assignment family (`wcs/nested-assign` / `wcs/array-mutation` / `wcs/array-index-assign`) is **error** severity since v1.31 — `wcs-validate` exits `1` on it, so a CI gate that passed on 1.30 can fail after upgrading the linter. That is the intended behavior; fix the assignments, not the gate.
+29. The filters' default locale is `<html lang>` as of v1.32 (was `'en'`) — a page that omits `lang` still formats in English, and changing `config.locale` after render updates nothing. Set `<html lang>` in the markup.
+30. `$setAll` broadcasts arrays by default — replacing each row with successive entries needs `{ spread: true }` (length mismatch throws). `undefined` from a mapper means "skip this row", never "write undefined". And omitted `$getAll` indexes default to the **loop context** as of v1.32 — inside a `for`-scoped getter that narrows to the current row; pass `[]` explicitly for "every match".

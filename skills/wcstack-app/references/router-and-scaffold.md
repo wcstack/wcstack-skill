@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v1.31.0.
+Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v1.32.0.
 
 ## 1. Minimal SPA scaffold
 
@@ -20,7 +20,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/router@1.31.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@1.32.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -62,7 +62,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 | `name` | For identification |
 | `guard` | Enables the guard. The value is the absolute redirect path used when the guard cancels |
 
-Properties: `params` (string parameters) / `typedParams` (type-converted) / `guardHandler`.
+Route elements are **detached controllers** after parsing (v1.32): they are not part of the live DOM, cannot be found with `querySelector`, and cannot be bound with `data-wcs`. Match results (`params` / `typedParams` / `routeName`) are read from the **`<wcs-router>` element** — see §5. `guardHandler` can still be set from JS on a route object obtained before parsing.
 
 ### Matching priority
 
@@ -91,7 +91,7 @@ A value that fails the type check **does not match that route** (no error; it fa
 
 ### How to receive parameters
 
-**(a) From JS**: `route.params.userId` (string) / `route.typedParams.userId` (type-converted).
+**(a) From JS**: read the **router element** — `document.querySelector('wcs-router').params.userId` (string) / `.typedParams.userId` (type-converted). (Reading them off the route element via `querySelector` no longer works as of v1.32 — routes are detached controllers.)
 
 **(b) `data-bind` auto-binding** — automatically injects parameters into elements inside the route:
 
@@ -104,7 +104,7 @@ A value that fails the type check **does not match that route** (no error; it fa
 
 Parameters are assigned before `connectedCallback` fires. For undefined custom elements, assignment is deferred until `customElements.whenDefined()` resolves (compatible with the autoloader).
 
-**(c) From state (via wc-bindable)** — derive with getters from the `path` output of `<wcs-router>` (see §5 and §7).
+**(c) From state (via wc-bindable)** — bind `typedParams` / `routeName` on `<wcs-router>` and consume the **parsed** results; no path-string regex needed (see §5 and §7).
 
 ## 3. Nested layouts and `<wcs-head>`
 
@@ -187,6 +187,8 @@ Manages the document `<head>` per route. Stack-based: the last one connected win
 
 Resolution order: (1) `basename` attribute → (2) derived from `<base href>` → (3) empty string. Normalization: prepend leading `/`, collapse consecutive slashes, strip trailing `/`, strip trailing `*.html` (`/app/index.html` → `/app`). Multiple routers can coexist in the same document as long as their basenames differ.
 
+**Multilingual sites: the locale goes in the basename, not a route pattern** (v1.32 canon, `examples/router-i18n`). Write `<base href="/ja/">` from a synchronous `<head>` script once the locale is known. A `/:lang` route parameter *breaks* the language switch: the router intercepts every same-origin navigation under its basename, so a link to another language would be handled client-side and per-locale modules (dictionary, `Intl` formatters) would never re-evaluate — the language silently does not change. With the locale in the basename, a link to `/en/…` falls outside the router's own path, and the browser performs a real navigation. Consequences: route patterns and in-app links stay locale-free, and **every URL on the page must be absolute** (`<base>` changes relative resolution — including `<wcs-state src>`, which resolves against the document base URL as of v1.32). Repair a locale-less URL in that same head script via `location.replace`, not a route guard (a guard's redirect target is static and cannot preserve the path).
+
 ### Fallback route / catch-all
 
 - `<wcs-route fallback>` — for 404.
@@ -201,30 +203,54 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 <wcs-link to="/about">About</wcs-link>
 ```
 
-- Converted to an `<a>`. If `to` starts with `/`, it is a route path (basename auto-prepended); otherwise it is treated as an external URL.
-- The `active` CSS class is automatically applied on current-location match: `a.active { font-weight: bold; }`
+- Converted to an `<a>`. If `to` starts with `/`, it is a route path (basename auto-prepended; a `?query` / `#hash` suffix is kept). A value starting with `?` is a **query-only link** (current pathname + that query, v1.32). Other values are external URLs.
+- The `active` CSS class is applied on current-location match — and `aria-current="page"` alongside it (v1.32). The comparison is **pathname-only**: `to="/products"` stays active on `/products?page=2`.
+- **Attribute forwarding (v1.32)**: at anchor creation, all `aria-*` plus `title` / `rel` / `target` / `download` / `hreflang` are copied host → anchor. Afterwards only the five fixed names keep tracking; **dynamic `aria-*` changes never reach the anchor** — including `data-wcs="attr.aria-label: ..."`. Write `aria-*` on `<wcs-link>` as static attributes.
+- In browsers with the Navigation API, a plain `<a href="/about">` under the basename is **also** intercepted as an SPA navigation; fallback browsers get SPA behavior only through `<wcs-link>` — so it stays the recommendation.
 
 ### Programmatic navigation
 
 **(a) JS API**: the router element's `async navigate(path: string): Promise<void>` (Navigation API, with pushState fallback when unavailable).
 
-**(b) From state** — the wc-bindable surface of `<wcs-router>` is `path` (output-only) and `navigateUrl` (both input/output):
+**(b) From state** — `<wcs-router>` exposes the whole navigation state over wc-bindable (surface extended in v1.32):
 
 ```html
-<wcs-router data-wcs="path: path; navigateUrl: navigateUrl">
+<wcs-router data-wcs="path: path; typedParams: routeParams; searchParams: query;
+                      routeName: routeName; navigateUrl: navigateUrl; replaceUrl: replaceUrl">
 ```
 
-```javascript
-export default {
-  path: "",          // router → state (current path flows in)
-  navigateUrl: null, // state → router (assign to navigate)
-  openProduct() { this.navigateUrl = "/products/" + this["products.*.id"]; },
-  goToProducts() { this.navigateUrl = "/"; },
-};
-```
+| Member | Direction | Notes |
+|---|---|---|
+| `path` | output | Current route path, basename sliced. Fires **last** on a navigation — doubles as "navigation finished" |
+| `params` / `typedParams` | output | Merged params of the matched chain; `typedParams` type-converted (`:id(int)` → number). `{}` on fallback / before init |
+| `searchParams` | output | Query as `Record<string,string>`; duplicate keys last-wins, `URLSearchParams` decoding; `{}` when none |
+| `routeName` | output | `name` of the deepest matched route (fallback route's `name` on a 404); `""` when unnamed |
+| `navigateUrl` | write (null-idle transient) | Assign a target to **push**-navigate; resets itself to `null` on finish; `null`/`""` writes are no-ops |
+| `replaceUrl` | write (null-idle transient) | Same contract, but **replaces** the history entry |
+| `basename` | input | Mirrors the attribute |
 
-- `navigateUrl` is **self-resetting**: the router sets it back to `null` when navigation completes, so re-assigning the same path navigates again.
-- `path` is output-only, so never write it back from state (the router is the authority. The current value is read when the binding is established, so deep links are never missed).
+- Outputs are **read** when the binding attaches, then streamed via change events — a binding attaching after the first route resolution misses nothing. On a committed navigation all values commit first, then events fire `params` → `routeName` → `search` → `path`, each only when changed; a guard-rejected navigation updates and fires nothing. The exposed objects are **frozen snapshots** — copy, don't mutate.
+- **Choosing the write surface**: pagination/tabs (back button should step through) → `navigateUrl = "?page=2"`; search boxes/filters (history should not record keystrokes) → `replaceUrl = "?q=" + …` with `<wcs-debounce>` in front.
+- Commands `navigate(path)` / `replace(path)` are also declared (invocable via command tokens).
+
+### Query strings in navigation targets (v1.32)
+
+`navigate()` / `navigateUrl` / `replaceUrl` / `<wcs-link to>` accept `/path` (query **not** carried over), `/path?k=v`, `?k=v` (**query-only**: pathname keeps its value), and `?` (clears the query). Queries never participate in route matching, and a query-only navigation is a **same-match**: guards do not re-run, content is not restamped, no view transition, no announcement, focus/scroll stay. Only `searchParams` and the URL change. The hash is passed through untouched (never routed on).
+
+### Accessibility contract (v1.32)
+
+Default: the router **delegates to the browser** — on the Navigation API path it passes the spec defaults explicitly (`scroll: "after-transition"`, `focusReset: "after-transition"`: push scrolls to top, traverse restores scroll, focus goes to `[autofocus]` or `<body>`); on the fallback path it scrolls to top after a committed push and leaves `popstate` to `history.scrollRestoration`. Opt-in policies — both off by default, never on first load, never on a guard-rejected navigation:
+
+- `<wcs-router focus="heading">` — moves focus to the first `h1`–`h6` of the **leaf** route's content (adds `tabindex="-1"` if needed; nothing happens without a heading, so give every route one when opting in).
+- `<wcs-router announce="title">` — writes the commit-time `document.title` snapshot into a router-owned live region (`role="status"`). Known limits: a bound `<title data-wcs>` may still be stale at commit; a title change outside navigation is not re-announced.
+
+### Route transition animations (v1.32)
+
+Load `@wcstack/view-transition/auto` and put `<wcs-view-transition for="router"></wcs-view-transition>` on the page: route swaps run inside a View Transition, styled in CSS via `::view-transition-old/new(root)`. Guards run first (an awaiting guard does not hold the transition open); the first paint never animates. `for="router"` keeps state's drain timing untouched — see `state-binding.md` §10 for what the default (`for="router state"`) changes.
+
+### Server-side rendering the initial route (v1.32)
+
+`<wcs-router enable-ssr>` + `@wcstack/server`'s `renderToString(html, { url, bootstraps })` renders the request URL's initial route on the server — typed params, nested routes, and structural templates inside route content included. The client router **adopts** the server-rendered DOM instead of re-rendering (state bindings hydrated on those nodes stay live); anything that fails verification falls back silently to client-side rendering. Guarded routes are never server-rendered (guards are authorization and run client-side; the outlet ships empty); `<wcs-layout>` routes fall back on adoption; `<wcs-link>` anchors are server-rendered with `active`/`aria-current` and adopted. Packages whose classes extend `HTMLElement` cannot be imported top-level in plain Node — pass async loaders: `bootstraps: [bootstrapState, async () => (await import('@wcstack/router')).bootstrapRouter()]`.
 
 ## 6. autoloader
 
@@ -300,16 +326,15 @@ export default class UiButton extends HTMLElement {
 <wcs-state>
   <script type="module">
     export default {
-      path: "",
+      // Router observation surface (v1.32): parsed results, no path regex anywhere
+      routeParams: {},   // <- typedParams: :productId(int) arrives as a number
+      routeName: "",     // <- name attribute of the deepest matched route
       navigateUrl: null,
       productsFetch: { value: null, loading: false, error: null, status: 0 },
       productFetch: { value: null, loading: false, error: null, status: 0 },
-      get productId() {
-        const m = this.path.match(/^\/products\/(\d+)$/);
-        return m ? Number(m[1]) : null;
-      },
-      get isList() { return this.path === "/" || this.path === ""; },
-      get isDetail() { return this.productId !== null; },
+      get productId() { return this.routeParams.productId ?? null; },
+      get isList() { return this.routeName === "products"; },
+      get isDetail() { return this.routeName === "product-detail"; },
       get "productFetch.url"() {
         return this.productId ? "/api/products/" + this.productId : undefined;
       },
@@ -321,12 +346,12 @@ export default class UiButton extends HTMLElement {
 </wcs-state>
 
 <!-- Router: owns the URL, history, page <title>, and static pages -->
-<wcs-router data-wcs="path: path; navigateUrl: navigateUrl">
+<wcs-router data-wcs="typedParams: routeParams; routeName: routeName; navigateUrl: navigateUrl">
   <template>
-    <wcs-route path="/">
+    <wcs-route path="/" name="products">
       <wcs-head><title>Products</title></wcs-head>
     </wcs-route>
-    <wcs-route path="/products/:productId(int)">
+    <wcs-route path="/products/:productId(int)" name="product-detail">
       <wcs-head><title>Product detail</title></wcs-head>
     </wcs-route>
     <wcs-route path="/about">
@@ -391,13 +416,13 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 
 - Write the tag directly inside the route and receive parameters via `data-bind` (§2).
 - **Defining is outside the router's responsibility** — the autoloader (§6) or a manual `customElements.define()` is required separately.
-- Alternative pattern (proven in router-spa): create no custom elements; put only `<wcs-head>` + static content in the routes, and switch the data-bound page DOM via `path`-derived getters in `<template data-wcs="if: ...">` directly under body (because of the constraint in §9-3, this pattern is the default answer when combining with state).
+- Alternative pattern (proven in router-spa): create no custom elements; put only `<wcs-head>` + static content in the routes, and switch the data-bound page DOM via `routeName`-derived getters in `<template data-wcs="if: ...">` directly under body. (Before v1.32 this was forced by §9-3; since the binder protocol it is a choice — bindings inside routes now work — but it remains the pattern the official demo ships.)
 
 ## 9. Pitfall checklist
 
 1. **Deep links break without `<base href="/">`** (the basename is mis-derived from `document.baseURI`).
 2. **The server needs a SPA fallback** — without it, reloads and direct links 404.
-3. **Writing `data-wcs` on nodes stamped by the router is not observed by state** — state only collects the DOM present at bind time. Put data bindings in `<template data-wcs="if:">` directly under body.
+3. **Bindings in router-stamped content work as of v1.32** (binder protocol: the router hands inserted subtrees — route content *and* `<wcs-head>` clones — to state, so per-route `<title data-wcs>` binds too). On ≤1.31 they were silently never collected. Two residuals: on a page **without** state the router warns about bindings that cannot work, and the body-level `<template data-wcs="if:">` architecture remains a perfectly good pattern (router-spa still uses it) — just no longer a requirement.
 4. **Script order — I/O node packages must come before `@wcstack/state`.** State last closes the window in which a `$command.x.emit()` reaches zero subscribers (command tokens are not replayed). Where the order is out of your hands, gate the emitting control on `<wcs-defined timeout>`'s `pending` output rather than awaiting `customElements.whenDefined()` (which never rejects).
 5. In Light DOM layouts, elements with a `slot` attribute are only effective as direct children of `<wcs-layout>`.
 6. A type mismatch is not an error but "no match" — `/products/abc` passes through `:productId(int)` and falls to the fallback.
