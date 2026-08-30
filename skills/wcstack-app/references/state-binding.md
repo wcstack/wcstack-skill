@@ -570,3 +570,50 @@ Binding a **Light DOM** component from the host — `<my-light-component data-wc
 28. The non-reactive assignment family (`wcs/nested-assign` / `wcs/array-mutation` / `wcs/array-index-assign`) is **error** severity since v1.31 — `wcs-validate` exits `1` on it, so a CI gate that passed on 1.30 can fail after upgrading the linter. That is the intended behavior; fix the assignments, not the gate.
 29. The filters' default locale is `<html lang>` as of v1.32 (was `'en'`) — a page that omits `lang` still formats in English, and changing `config.locale` after render updates nothing. Set `<html lang>` in the markup.
 30. `$setAll` broadcasts arrays by default — replacing each row with successive entries needs `{ spread: true }` (length mismatch throws). `undefined` from a mapper means "skip this row", never "write undefined". And omitted `$getAll` indexes default to the **loop context** as of v1.32 — inside a `for`-scoped getter that narrows to the current row; pass `[]` explicitly for "every match".
+
+## 13. Testing a page headlessly (vitest + happy-dom)
+
+A `<wcs-state>` page is plain DOM; nothing in wcstack is test-only. The recipe below is pinned by a contract test in the wcstack repo (`packages/state/__tests__/readme.testingRecipe.test.ts`); the full version with bare-Node and snapshot variants is in the state README, section "Testing Your Page".
+
+`vitest.config.ts`: `test: { environment: "happy-dom", setupFiles: ["./tests/setup.ts"] }`.
+
+`tests/setup.ts` — register once, and route inline `<script type="module">` state through the `data:` URL loader (Node cannot import `blob:` URLs; without this line an inline-script state never finishes loading):
+
+```ts
+import { bootstrapState } from "@wcstack/state";
+bootstrapState();
+URL.createObjectURL = undefined as any;
+```
+
+A test:
+
+```ts
+import { expect, it } from "vitest";
+import { getBindingsReady } from "@wcstack/state";
+const settle = () => new Promise<void>((r) => setTimeout(r, 0));
+
+it("renders, re-renders, runs handlers", async () => {
+  document.body.innerHTML = `
+    <wcs-state json='{"count": 1, "items": ["apple", "banana"]}'></wcs-state>
+    <p id="count" data-wcs="textContent: count"></p>
+    <ul id="items"><template data-wcs="for: items"><li data-wcs="textContent: items.*"></li></template></ul>
+  `;
+  const stateEl = document.querySelector("wcs-state") as any;
+  await stateEl.connectedCallbackPromise;      // the state element is up
+  await getBindingsReady(document);            // every binding under document is built (rejects on init failure)
+  expect(document.querySelector("#count")!.textContent).toBe("1");
+
+  await stateEl.createStateAsync("writable", async (s: any) => {   // what a handler does
+    s.count = 42;
+    s.items = [...s.items, "cherry"];          // reactive form — push() is not observed
+  });
+  await settle();                              // one macrotask is enough
+  expect(document.querySelector("#count")!.textContent).toBe("42");
+  expect(document.querySelectorAll("#items li").length).toBe(3);
+});
+```
+
+- To exercise handlers, keep the state inline (methods included) and dispatch DOM events: `button.click()` on a `data-wcs="onclick: up"` button, then `await settle()`.
+- Snapshot: `expect(await renderToString(html)).toMatchSnapshot()` with `renderToString` from `@wcstack/server`.
+- Bare Node (no vitest): `const restore = installGlobals(new Window({ url: "http://localhost/" }))` from `@wcstack/server`, then **dynamic-import `@wcstack/state` after it** (a static import at the top of the file registers elements happy-dom cannot construct), run the same steps, `restore()`.
+- Blind spots that need one browser e2e (Playwright): happy-dom replaces nodes on a late `customElements.define`, and its event timing differs from real browsers.
