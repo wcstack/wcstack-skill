@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v1.32.0.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v1.33.0.
 
 ## 1. CDN Loading
 
@@ -21,13 +21,13 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.32.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@1.33.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
 `dist/auto.min.js` is a **self-contained bundle with zero static imports**, so the usual ESM caveat — `integrity` covers the entry but not what it imports — does not apply: one hash covers every line of wcstack that runs. Rules that make it work:
 
-- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@1.32.0/dist/auto.min.js` is a 200).
+- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@1.33.0/dist/auto.min.js` is a 200).
 - **`crossorigin` is not needed** — `type="module"` is always fetched in CORS mode.
 - **Get digests from the GitHub Release** (a table in the body, plus a machine-readable `sri.json` asset), computed from the published tree. Never from jsDelivr's data API: the point of SRI is not trusting the CDN, so letting it self-report is circular.
 - **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. `dist/index.esm.min.js` is no longer published (v1.26); named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127 / Safari 18; not Firefox).
@@ -85,12 +85,14 @@ Resolution order: `state` attribute → `src` (.json/.js) → `json` attribute �
 - **Trusted Types (`require-trusted-types-for 'script'`) is unsupported**: it throws in `@wcstack/fetch`'s `html` binding, `<wcs-layout>` template expansion, and DCC definition.
 - **Diagnosing it**: a CSP-blocked dynamic `import()` only rejects with `Failed to fetch dynamically imported module`. state/router subscribe to `securitypolicyviolation` during evaluation and say `... was blocked by Content-Security-Policy` only when a violation was actually observed — if you instead see `Failed to evaluate the inline <script> of state "…"`, it is usually a syntax error in your state module (original error in `cause`).
 
-### Named states
+### Named states — deprecated (v1.33), removed in v2
 
 ```html
 <wcs-state name="cart">...</wcs-state>
 <div data-wcs="textContent: total@cart"></div>
 ```
+
+**Do not generate this form in new code.** The `name` attribute and the `@name` selector are a second axis next to the path (a per-rootNode registry that does not cross shadow boundaries); v2 removes them in favor of **mounts** (`<wcs-state mount="cart">` grafts the state onto the root tree and bindings read it as `cart.total` — v2 only, no `mount=` exists in 1.x). In 1.x nothing changes at runtime; lint reports every site as `wcs/named-state-deprecated` (warning, with the per-site replacement), and the runtime warns only under `config.debug`. A `@default` selector can simply be dropped. **One exception**: a **Light DOM** `bind-component` component still *requires* `name` today — the lint rule skips those. Prefer one default state per page; to hand a component a subtree, use the whole-object mount (§12).
 
 ## 3. `data-wcs` Binding Syntax
 
@@ -99,6 +101,7 @@ property[#modifier[,modifier...]][|input filter...]: path[@state][|output filter
 ```
 
 - Multiple bindings are **separated by `;`**: `data-wcs="textContent: count; class.over: count|gt(10)"`
+- The `@state` selector in the path is **deprecated as of v1.33** (removed in v2 — see §2 Named states); omit it in new code.
 - Filters on the left side (property side) apply in the **DOM→state input direction**: `<select data-wcs="value|number: selectedProductId">`
 - Right-side filters apply in the state→DOM output direction.
 - Multiple modifiers are comma-separated after a single `#`: `value#ro,init=none: path`
@@ -510,6 +513,27 @@ export default {
 - Both declarations are validated at definition time with the same strictness as `$commandTokens`. Errors: not an array; a non-string or empty entry; an entry starting with `$`; a **duplicate entry** (this used to break silently — one duplicate made the whole `wcBindable` declaration unreadable and the element quietly non-bindable); a name that does not exist on the state (own properties and the prototype chain are both searched; `$streams` names count as existing); a method listed in `$bindables`, or a value property listed in `$commands`.
 - Other DCC state keys: `$connectedCallback` / `$disconnectedCallback` / `$updatedCallback` run per instance.
 
+### `bind-component`: whole-object mount — `state: path` (v1.33+)
+
+Instead of wiring property by property, mount a **whole subtree** of the host's state as the component's root; inside the component every path is then relative to the mount point:
+
+```html
+<!-- host: name inside the component IS user.name -->
+<user-card data-wcs="state: user"></user-card>
+
+<!-- in a loop, mount the row itself: inside, `name` is users.*.name,
+     and the component's own `for: tags` runs over users.*.tags.* -->
+<template data-wcs="for: users">
+  <user-row data-wcs="state: ."></user-row>
+</template>
+```
+
+- `state: user` (one segment — a silent no-op before v1.33) mounts the component's root at tree path `user`. Reads, writes (`value: name`, `this.state.name = ...`), getters and `for:` all resolve against the tree; host-side `this.user = {...}` and `this["user.name"] = ...` both reach the component.
+- **Partial mounts coexist**: `state: user; state.theme: theme` — longest prefix wins, so `theme.mode` inside reads the tree's `theme.mode`. Duplicate inner paths throw at build.
+- **Own keys are private (rule R1)**: a data key the component declares itself (`state = { mode: "view" }`) belongs to the element and is never written to the tree. If it hides a key existing at the mount point, the runtime warns once (`wcs/mount-own-key-shadow`) — remove the default to read the tree, or rename to keep it private.
+- **Mounting an array as the root is not supported in 1.x** (`state: rows` with `for` over it inside) — mount the row (`state: .`) or the object holding the array (`state: group` + `for: children` inside). Both forms carry over unchanged to v2, where mounts become the only way to extend the tree.
+- The per-property form (`state.message: user.name`) keeps working — but a component declaring a default for a *mapped* key (`state = { message: "" }` next to `state.message: ...`) gets a one-time warning: today the host value wins, in v2 the own key would hide it. Drop the default.
+
 ### `bind-component`: rendering the host's list inside the component
 
 `<wcs-state bind-component="state">` goes inside the shadowRoot; the host writes `data-wcs="state.message: user.name"`. In Light DOM the `name` attribute and `@name` references are required (namespace collisions otherwise). Since v1.26 an array can be bound across the boundary and iterated **inside** the component:
@@ -537,6 +561,28 @@ Binding a **Light DOM** component from the host — `<my-light-component data-wc
 
 - **Two instances carrying the same state `name` cannot live in one scope** — Light DOM shares its namespace with the parent scope. A component stamped on every row of a `for` therefore needs Shadow DOM.
 - **`State.getBindingsReady(root)` does not cover the component's scope** — the same contract as the Shadow DOM form, where the child lives in a different rootNode. Await the component's own `<wcs-state>` initialization when you need its contents rendered.
+
+## 13. Testing the page headlessly (v1.33+)
+
+A `<wcs-state>` page is plain DOM, so it tests under vitest + happy-dom with no browser and no test-only API. The one-import form is **`@wcstack/testing`** (`npm i -D @wcstack/testing @wcstack/state @wcstack/server vitest happy-dom` — state and server are peers):
+
+```javascript
+import { mount, settle, fire } from "@wcstack/testing";
+
+const app = await mount(`
+  <wcs-state json='{"count": 1}'></wcs-state>
+  <p data-wcs="textContent: count"></p>
+  <button data-wcs="onclick: up">+1</button>
+`);                                                     // registers elements, waits for router + bindings
+expect(app.root.querySelector("p").textContent).toBe("1");
+await app.state().write((s) => { s.count = 42; });      // what a handler does
+await settle();
+fire(app.root.querySelector("button"), "click");        // what a user does
+await settle();
+app.unmount();
+```
+
+`mount(html, { root: "shadow", bootstrap: [async () => (await import("@wcstack/router")).bootstrapRouter()] })` scopes bindings to a fresh shadow root and registers additional packages. The bare recipe (no `@wcstack/testing`) is in the state README "Testing Your Page"; its two non-obvious lines: `URL.createObjectURL = undefined` in setup (Node cannot import `blob:` URLs, so this reroutes inline `<script type="module">` state through the `data:` loader — without it an inline state never finishes loading), and `await stateEl.connectedCallbackPromise` then `await getBindingsReady(document)` before asserting. Writes go through `stateEl.createStateAsync("writable", async (state) => {...})`.
 
 ## Pitfall Checklist
 
@@ -571,3 +617,5 @@ Binding a **Light DOM** component from the host — `<my-light-component data-wc
 29. The filters' default locale is `<html lang>` as of v1.32 (was `'en'`) — a page that omits `lang` still formats in English, and changing `config.locale` after render updates nothing. Set `<html lang>` in the markup.
 30. `$setAll` broadcasts arrays by default — replacing each row with successive entries needs `{ spread: true }` (length mismatch throws). `undefined` from a mapper means "skip this row", never "write undefined". And omitted `$getAll` indexes default to the **loop context** as of v1.32 — inside a `for`-scoped getter that narrows to the current row; pass `[]` explicitly for "every match".
 31. A `stateSchema` in the nearest `wcstack.manifest.json` (generated by `wcs-schema emit src/state.ts`, or hand-written) turns a missing path into `wcs/path-nonexistent` (**error**) and `for:` on a non-array into `wcs/path-type-mismatch` for that state — the discovery walks up from the HTML file, so a manifest in a parent directory applies to every page below it, and an explicit manifest argument replaces discovery for the whole run. Paths under a bare `{}` (a `Date`, `Map`, `Record<string, T>`, or the depth cut-off) stay silent; methods, getters and `$listKeys` from the inline script still count as existing. The manifest is derived from the type: gate CI with `wcs-schema check` and regenerate with `emit --merge` after changing the state type. Two manifests declaring the same state name are a `wcs/manifest-state-collision` error with no winner.
+32. Named state (`name=` / `@name` / mustache `@name`) is deprecated as of v1.33 (`wcs/named-state-deprecated`; removed in v2). Do not generate it in new code — one default state per page; hand a component a subtree with `state: path` (§12). Exception: Light DOM `bind-component` still requires `name` today.
+33. Mount rules (`state: path`, v1.33+): a one-segment `state:` was a silent no-op before v1.33 — pin ≥1.33 when using it. An array cannot be the mount root in 1.x (mount the row `state: .` or the holding object). An own key that shadows a mount-point key warns (`wcs/mount-own-key-shadow`); a default declared for a *mapped* key should be dropped (v2 flips who wins).
