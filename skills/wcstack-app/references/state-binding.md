@@ -584,6 +584,10 @@ app.unmount();
 
 `mount(html, { root: "shadow", bootstrap: [async () => (await import("@wcstack/router")).bootstrapRouter()] })` scopes bindings to a fresh shadow root and registers additional packages. The bare recipe (no `@wcstack/testing`) is in the state README "Testing Your Page"; its two non-obvious lines: `URL.createObjectURL = undefined` in setup (Node cannot import `blob:` URLs, so this reroutes inline `<script type="module">` state through the `data:` loader — without it an inline state never finishes loading), and `await stateEl.connectedCallbackPromise` then `await getBindingsReady(document)` before asserting. Writes go through `stateEl.createStateAsync("writable", async (state) => {...})`.
 
+- **Snapshot**: `expect(await renderToString(html)).toMatchSnapshot()` — `renderToString` from `@wcstack/server`.
+- **Bare Node (no vitest)**: `const restore = installGlobals(new Window({ url: "http://localhost/" }))` from `@wcstack/server`, then **dynamic-import `@wcstack/state` after it** (a static import at the top of the file registers elements happy-dom cannot construct), run the same steps, `restore()`.
+- **Blind spots that still need one browser e2e** (Playwright): happy-dom replaces nodes on a late `customElements.define`, and its event timing differs from real browsers.
+
 ## Pitfall Checklist
 
 1. The runtime does not observe `this.user.name = "Bob"` — always use `this["user.name"] = "Bob"`; lint reports `wcs/nested-assign`.
