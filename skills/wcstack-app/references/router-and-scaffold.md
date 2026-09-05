@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v2.0.0. The router surface is unchanged in v2 — the breaking changes are all in `@wcstack/state` (see `state-binding.md` §2).
+Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v2.1.0. The v2 breaking changes are all in `@wcstack/state` (see `state-binding.md` §2); the router surface changed only in v2.1.0, and only for accessibility (§5).
 
 ## 1. Minimal SPA scaffold
 
@@ -20,7 +20,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/router@2.0.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@2.1.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -205,7 +205,7 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 
 - Converted to an `<a>`. If `to` starts with `/`, it is a route path (basename auto-prepended; a `?query` / `#hash` suffix is kept). A value starting with `?` is a **query-only link** (current pathname + that query, v1.32). Other values are external URLs.
 - The `active` CSS class is applied on current-location match — and `aria-current="page"` alongside it (v1.32). The comparison is **pathname-only**: `to="/products"` stays active on `/products?page=2`.
-- **Attribute forwarding (v1.32)**: at anchor creation, all `aria-*` plus `title` / `rel` / `target` / `download` / `hreflang` are copied host → anchor. Afterwards only the five fixed names keep tracking; **dynamic `aria-*` changes never reach the anchor** — including `data-wcs="attr.aria-label: ..."`. Write `aria-*` on `<wcs-link>` as static attributes. (The release after 2.0.0 adds `lang` / `dir` to the mirrored set — they set the announcement language and direction of the link text, so a multilingual nav wants them.)
+- **Attribute forwarding (v1.32; seven names as of v2.1.0)**: at anchor creation, all `aria-*` plus `title` / `rel` / `target` / `download` / `hreflang` / `lang` / `dir` are copied host → anchor (`lang` / `dir` joined in v2.1.0 — they set the announcement language and direction of the link text, so a multilingual nav wants them; on ≤2.0.0 only the first five exist). Afterwards only those fixed names keep tracking; **dynamic `aria-*` changes never reach the anchor** — including `data-wcs="attr.aria-label: ..."`. Write `aria-*` on `<wcs-link>` as static attributes.
 - In browsers with the Navigation API, a plain `<a href="/about">` under the basename is **also** intercepted as an SPA navigation; fallback browsers get SPA behavior only through `<wcs-link>` — so it stays the recommendation.
 
 ### Programmatic navigation
@@ -237,12 +237,12 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 
 `navigate()` / `navigateUrl` / `replaceUrl` / `<wcs-link to>` accept `/path` (query **not** carried over), `/path?k=v`, `?k=v` (**query-only**: pathname keeps its value), and `?` (clears the query). Queries never participate in route matching, and a query-only navigation is a **same-match**: guards do not re-run, content is not restamped, no view transition, no announcement, focus/scroll stay. Only `searchParams` and the URL change. The hash is passed through untouched (never routed on).
 
-### Accessibility contract (v1.32)
+### Accessibility contract (v1.32; repaired in v2.1.0)
 
 Default: the router **delegates to the browser** — on the Navigation API path it passes the spec defaults explicitly (`scroll: "after-transition"`, `focusReset: "after-transition"`: push scrolls to top, traverse restores scroll, focus goes to `[autofocus]` or `<body>`); on the fallback path it scrolls to top after a committed push and leaves `popstate` to `history.scrollRestoration`. Opt-in policies — both off by default, never on first load, never on a guard-rejected navigation:
 
-- `<wcs-router focus="heading">` — moves focus to the first `h1`–`h6` of the **leaf** route's content (adds `tabindex="-1"` if needed). **Write exactly `focus="heading"` or omit the attribute**: on 2.0.0 only that value activates the policy, but *any* `focus=` attribute makes the router pass `focusReset: "manual"` on the Navigation API path — so `focus=""` or a typo (`focus="h1"`) silently disables the browser's own focus reset and puts nothing in its place. **Give every route a heading, near the top of its content**: on 2.0.0 a route without one leaves focus where it was — on a persistent nav `<wcs-link>`, i.e. the previous screen — and focusing a heading scrolls it into view, but the scroll-to-top after a push wins, so a heading far down ends up focused off-screen. Hidden headings (`hidden` / `display:none`) are focused as a no-op. The release after 2.0.0 fixes the gate and the heading-absent hole (falling back to `[autofocus]`, else `<body>`) and skips hidden headings; the two authoring rules above hold either way.
-- `<wcs-router announce="title">` — writes the commit-time `document.title` snapshot into a router-owned live region (`role="status"`). Known limits: a bound `<title data-wcs>` may still be stale at commit; a title change outside navigation is not re-announced; and navigating between two routes that share a title may not be announced at all by some screen reader / browser pairs, because the live-region text never changes.
+- `<wcs-router focus="heading">` — moves focus to the first **visible** `h1`–`h6` of the **leaf** route's content (adds `tabindex="-1"` if needed; hidden headings are skipped as of v2.1.0, since focusing them is a no-op). With no visible heading, v2.1.0 reproduces the spec-default reset itself — first `[autofocus]`, else blur to `<body>` — and only the exact value `"heading"` activates the policy, an empty or unknown value falling back to the browser default. **Two authoring rules hold regardless**: write exactly `focus="heading"` or omit the attribute, and **give every route a visible heading near the top of its content** (focusing a heading scrolls it into view, but the scroll-to-top after a push wins, so a heading far down ends up focused off-screen). **On ≤2.0.0 both rules are load-bearing**: any `focus=` value made the router pass `focusReset: "manual"` while only `"heading"` acted, so a typo disabled the browser's reset with nothing in its place, and a heading-less route left focus on the clicked element — stranding a screen reader on the previous screen. Pin ≥2.1.0 when accessibility matters.
+- `<wcs-router announce="title">` — writes the commit-time `document.title` snapshot into a router-owned live region (`role="status"`). Known limits: a bound `<title data-wcs>` may still be stale at commit; a title change outside navigation is not re-announced; and navigating between two routes that share a title may not be announced at all by some screen reader / browser pairs, because the live-region text never changes — give routes distinct titles.
 
 **Recommended default for an SPA scaffold**: `<wcs-router focus="heading" announce="title">`, plus one `<h1>` and one `<wcs-head><title>` per route. Both policies are inert without that markup, so opting in without the headings and titles buys nothing.
 
