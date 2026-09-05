@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v2.0.0.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v2.1.0.
 
 ## 1. CDN Loading
 
@@ -21,13 +21,13 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@2.0.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@2.1.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
 `dist/auto.min.js` is a **self-contained bundle with zero static imports**, so the usual ESM caveat — `integrity` covers the entry but not what it imports — does not apply: one hash covers every line of wcstack that runs. Rules that make it work:
 
-- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@2.0.0/dist/auto.min.js` is a 200).
+- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@2.1.0/dist/auto.min.js` is a 200).
 - **`crossorigin` is not needed** — `type="module"` is always fetched in CORS mode.
 - **Get digests from the GitHub Release** (a table in the body, plus a machine-readable `sri.json` asset), computed from the published tree. Never from jsDelivr's data API: the point of SRI is not trusting the CDN, so letting it self-report is circular.
 - **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. `dist/index.esm.min.js` is no longer published (v1.26); named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127 / Safari 18; not Firefox).
@@ -65,7 +65,7 @@ Resolution order: `state` attribute → `src` (.json/.js) → `json` attribute �
 </script>
 ```
 
-`<wcs-state>` attributes: `mount` (graft this state onto the root tree at that path — see below) / `state` / `src` / `json` / `bind-component` (Web Component binding) / `enable-ssr`. **`name` was removed in v2** — it now fails fast with the migration text. As of v1.32, `src` resolves against the **document base URL** — so with `<base href="/ja/">` (the i18n basename pattern), `src="./state.js"` fetches `/ja/state.js`.
+`<wcs-state>` attributes: `mount` (graft this state onto the root tree at that path — see below) / `state` / `src` / `json` / `bind-component` (Web Component binding) / `enable-ssr`. **`name` was removed in v2** — it now fails fast with the migration text. As of v1.32, `src` resolves against the **document base URL** — so with `<base href="/ja/">` (the i18n basename pattern), a relative `src="./state.js"` fetches `/ja/state.js` and 404s. **Under a `<base>`, write the URL root-absolute**: `src="/state.js"`.
 
 ### Under a Content-Security-Policy the load path decides the directives (v1.26 docs)
 
@@ -97,7 +97,7 @@ There is **one state tree per rootNode** (document or shadowRoot). To split stat
 
 - The **root `<wcs-state>` is required** and may be empty (`<wcs-state></wcs-state>`). Volumes with no root are a loud error.
 - **Load order does not matter.** A volume connected before the root is grafted when the root registers; reads under a not-yet-loaded volume return `undefined` and are *not* reported as missing paths.
-- The mount path is **static and dotted** (`settings.theme` is fine). `*`, `$`, `#`, `@` and empty segments are rejected — at runtime and as `wcs/mount-path-invalid` (error) in lint. Mounting onto a slot the root already owns throws, as does replacing a mount point's parent wholesale from the root (`this.settings = {...}` under `mount="settings.theme"`).
+- The mount path is **static and dotted** (`settings.theme` is fine). `*`, `$`, `#`, `@` and empty segments are rejected — at runtime and as `wcs/mount-path-invalid` (error) in lint. Changing `mount` after initialization is ignored, and **warns as of v2.1.0** (it was silently ignored on 2.0.0); setting it before initialization stays silent. Mounting onto a slot the root already owns throws, as does replacing a mount point's parent wholesale from the root (`this.settings = {...}` under `mount="settings.theme"`).
 - A volume may declare **getters, `$watch`, `$listKeys`, `$updatedCallback`, `$connectedCallback` / `$disconnectedCallback`** — all relative to its own mount path. It may **not** declare `$streams` (raises), and `$commandTokens` / `$eventTokens` / `$on` belong on the root.
 - Cross-module reads are ordinary paths: a root getter reading `this["cart.total"]` tracks the dependency like any other. The v1 "cross-state read" problem disappears with the name dimension.
 
@@ -549,7 +549,7 @@ Instead of wiring property by property, mount a **whole subtree** of the host's 
 
 - `state: user` mounts the component's root at tree path `user`. Reads, writes (`value: name`, `this.state.name = ...`), getters and `for:` all resolve against the tree; host-side `this.user = {...}` and `this["user.name"] = ...` both reach the component.
 - **Partial mounts coexist**: `state: user; state.theme: theme` — longest prefix wins, so `theme.mode` inside reads the tree's `theme.mode`. Duplicate inner paths throw at build.
-- **Own keys are private (rule R1)**: a data key the component declares itself (`state = { mode: "view" }`) belongs to the element and is never written to the tree. If it hides a key existing at the mount point, the runtime warns once (`wcs/mount-own-key-shadow`) — remove the default to read the tree, or rename to keep it private.
+- **Own keys are private (rule R1)**: a data key the component declares itself (`state = { mode: "view" }`) belongs to the element and is never written to the tree. If it hides a key existing at the mount point, the runtime warns once (`wcs/mount-own-key-shadow`) — remove the default to read the tree, or rename to keep it private. Private-key updates **never reach `$updatedCallback`** (root or volume-relative) as of v2.1.0: their internal addresses carry a marker segment that is meaningless outside the scope and changes on every re-initialization. Inspect them in the devtools State pane's Overlays section instead.
 - **Mounting an array as the root is not supported** (`state: rows` with `for` over it inside) — mount the row (`state: .`) or the object holding the array (`state: group` + `for: children` inside). Mounts are the only way to extend the tree in v2.
 - The per-property form (`state.message: user.name`) keeps working — it is a partial mount on the same machinery. **R1 is strict for every mount form in v2**: a component that declares a default for a *mapped* key (`state = { message: "" }` next to `state.message: ...`) keeps that key **private and hides the host value** (v1 let the host value win). A one-time `wcs/mount-own-key-shadow` warning points at it — drop the default to read the tree.
 - **One mount scope per component**: a second `<wcs-state bind-component>` on another property raises (the first scope's collected bindings would die silently).
