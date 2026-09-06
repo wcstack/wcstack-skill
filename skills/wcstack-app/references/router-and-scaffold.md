@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v2.1.0. The v2 breaking changes are all in `@wcstack/state` (see `state-binding.md` §2); the router surface changed only in v2.1.0, and only for accessibility (§5).
+Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v2.1.1. The v2 breaking changes are all in `@wcstack/state` (see `state-binding.md` §2); the router surface changed only in v2.1.0, and only for accessibility (§5).
 
 ## 1. Minimal SPA scaffold
 
@@ -20,7 +20,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/router@2.1.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@2.1.1/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
