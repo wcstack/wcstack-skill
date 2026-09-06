@@ -292,6 +292,8 @@ bound.dispose();                              // tear down everything (idempoten
 
 Typing via `bindNode<FetchShape>(el)`. Real-world pattern: `effect(() => bound.set("url", ...))` for the query → `<wcs-fetch>` auto-fetches → read `bound.signals.value` in a `computed` and render with `For` (examples/signals-live-search).
 
+**What a property signal receives** (`bound.signals.x` and `bound.on("x")`): `getter(event)` from the descriptor, and when `getter` is omitted the wc-bindable default `(e) => e.detail` — the same rule as a `data-wcs` two-way binding, so an element behaves identically under `state` and `signals` (fixed in wcstack#238; earlier signals releases read the element property instead). The initial seed is the one property read (`el[name]`, there is no event yet). Every wcs-* node dispatches its value as `detail`, so nothing changes for them; a third-party element whose `detail` is not the property value (`detail: { value }`, or no `detail`) needs an explicit `getter: (e) => e.target.value` in the descriptor you pass to `bindNode`.
+
 **`bindNode` is synchronous, so the class must already be registered when you call it** — it reads the descriptor from `el.constructor.wcBindable`, and an un-upgraded element has none (it throws). This is the structural asymmetry with `data-wcs`: the declarative layer can defer wiring until upgrade, an imperative API that returns values now cannot. Pick the idiom by who loads the node (v1.23+, `docs/signals-definition-timing.md`):
 
 | Situation | Idiom | Failure behavior |
