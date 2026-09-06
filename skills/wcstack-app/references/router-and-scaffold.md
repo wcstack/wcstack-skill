@@ -177,6 +177,35 @@ Manages the document `<head>` per route. Stack-based: the last one connected win
 
 `false` cancels → navigates to the path in the `guard` attribute. `<wcs-guard-handler>` is removed from the DOM after parsing. Ignored if placed outside a `<wcs-route>`. Can also be set from JS via `route.guardHandler = fn`.
 
+**Guard return values and the third argument (v2.2+)** — the guard is the one async step before the route content swaps, so it doubles as the route's **loader** and **dynamic redirect**:
+
+| Return | Effect |
+|---|---|
+| `true` | enter |
+| an object | enter **and** commit it as `<wcs-router>.data` (output-only, `wcs-router:data-changed`, fires first; nested chain shallow-merged parent → child; `null` on navigations whose guards return no object; same-match keeps it) |
+| a non-empty string | cancel and redirect **there** (wins over `guard=`) — e.g. `` return `/login?next=${encodeURIComponent(toPath)}` `` |
+| any falsy (`false` / `undefined` / `null` / `""`) | cancel → `guard=` path (unchanged: a forgotten `return` still rejects) |
+
+The third argument is a frozen `{ params, typedParams, searchParams, routeName }` snapshot of the match being entered — the same vocabulary the router exposes after the commit, readable before it. Canonical loader:
+
+```html
+<wcs-router data-wcs="data: routeData; typedParams: routeParams">
+  <wcs-route path="/users/:id(int)" name="user" guard="/users">
+    <wcs-guard-handler><script type="module">
+      export default async function (to, from, { typedParams }) {
+        const res = await fetch(`/api/users/${typedParams.id}`);
+        if (res.status === 404) return "/users";
+        if (!res.ok) return false;
+        return { user: await res.json() };
+      }
+    </script></wcs-guard-handler>
+    <h1 data-wcs="textContent: routeData.user.name"></h1>
+  </wcs-route>
+</wcs-router>
+```
+
+`data` is the one router output that is **not** frozen (it is the guard's own object) and the router does not cache it — same route with other params loads again. Use it when the page must not show the new route with empty content (a `<wcs-view-transition>` otherwise animates a blank frame). Still no `src=` escape from `blob:` under CSP.
+
 **Guards force `script-src blob:` under a CSP.** The handler is evaluated through a `blob:` URL, and unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented. If the policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead.
 
 ### basename
@@ -187,7 +216,7 @@ Manages the document `<head>` per route. Stack-based: the last one connected win
 
 Resolution order: (1) `basename` attribute → (2) derived from `<base href>` → (3) empty string. Normalization: prepend leading `/`, collapse consecutive slashes, strip trailing `/`, strip trailing `*.html` (`/app/index.html` → `/app`). Multiple routers can coexist in the same document as long as their basenames differ.
 
-**Multilingual sites: the locale goes in the basename, not a route pattern** (v1.32 canon, `examples/router-i18n`). Write `<base href="/ja/">` from a synchronous `<head>` script once the locale is known. A `/:lang` route parameter *breaks* the language switch: the router intercepts every same-origin navigation under its basename, so a link to another language would be handled client-side and per-locale modules (dictionary, `Intl` formatters) would never re-evaluate — the language silently does not change. With the locale in the basename, a link to `/en/…` falls outside the router's own path, and the browser performs a real navigation. Consequences: route patterns and in-app links stay locale-free, and **every URL on the page must be absolute** (`<base>` changes relative resolution — including `<wcs-state src>`, which resolves against the document base URL as of v1.32). Repair a locale-less URL in that same head script via `location.replace`, not a route guard (a guard's redirect target is static and cannot preserve the path).
+**Multilingual sites: the locale goes in the basename, not a route pattern** (v1.32 canon, `examples/router-i18n`). Write `<base href="/ja/">` from a synchronous `<head>` script once the locale is known. A `/:lang` route parameter *breaks* the language switch: the router intercepts every same-origin navigation under its basename, so a link to another language would be handled client-side and per-locale modules (dictionary, `Intl` formatters) would never re-evaluate — the language silently does not change. With the locale in the basename, a link to `/en/…` falls outside the router's own path, and the browser performs a real navigation. Consequences: route patterns and in-app links stay locale-free, and **every URL on the page must be absolute** (`<base>` changes relative resolution — including `<wcs-state src>`, which resolves against the document base URL as of v1.32). Repair a locale-less URL in that same head script via `location.replace`, not a route guard (a guard *can* redirect dynamically since v2.2 by returning a string, but the head script runs before any module loads and the basename decision has to be made there anyway).
 
 ### Fallback route / catch-all
 
@@ -229,7 +258,7 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 | `replaceUrl` | write (null-idle transient) | Same contract, but **replaces** the history entry |
 | `basename` | input | Mirrors the attribute |
 
-- Outputs are **read** when the binding attaches, then streamed via change events — a binding attaching after the first route resolution misses nothing. On a committed navigation all values commit first, then events fire `params` → `routeName` → `search` → `path`, each only when changed; a guard-rejected navigation updates and fires nothing. The exposed objects are **frozen snapshots** — copy, don't mutate.
+- Outputs are **read** when the binding attaches, then streamed via change events — a binding attaching after the first route resolution misses nothing. On a committed navigation all values commit first, then events fire `data` → `params` → `routeName` → `search` → `path`, each only when changed (`data` by identity); a guard-rejected navigation updates and fires nothing. The exposed objects are **frozen snapshots** — copy, don't mutate.
 - **Choosing the write surface**: pagination/tabs (back button should step through) → `navigateUrl = "?page=2"`; search boxes/filters (history should not record keystrokes) → `replaceUrl = "?q=" + …` with `<wcs-debounce>` in front.
 - Commands `navigate(path)` / `replace(path)` are also declared (invocable via command tokens).
 
