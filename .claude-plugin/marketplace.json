@@ -1,6 +1,9 @@
 {
   "name": "wcstack",
   "owner": { "name": "wcstack" },
+  "metadata": {
+    "description": "Agent Skills for building web apps with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components)."
+  },
   "plugins": [
     {
       "name": "wcstack-app",
