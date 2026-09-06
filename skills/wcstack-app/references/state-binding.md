@@ -584,6 +584,29 @@ In v2 a Light DOM component is written exactly like the Shadow one — `<wcs-sta
 - **The host must wire it.** A plain, unwired Light DOM `bind-component` **cannot exist in v2** — an independent tree cannot share the parent's root — and it fails loudly with the fix: add `attachShadow`, or mount it from the host (`state: user` / `state.message: user.name`).
 - **`State.getBindingsReady(root)` now covers mounted scopes** once the mount record resolves (the v1 "never covers a bind-component child" carve-out is gone). Await the component's own `<wcs-state>` when you specifically need its contents rendered.
 
+### Your own `static wcBindable` element: what the two-way binding writes back
+
+A third option is a hand-written class that declares `static wcBindable` itself (it then gets spread, command tokens and event tokens like an I/O node). The one rule that is easy to miss: when the element dispatches `properties[].event`, the value written to state is **`getter(event)`**, and with no `getter` the wc-bindable default is **`(e) => e.detail` — the whole `detail`, as-is**. The declared property is *not* read off the element at that moment (only the initial sync reads it). Dispatching `detail: { value: 7 }` without a `getter` therefore writes the object `{ value: 7 }` to state, the write-back becomes `NaN`, and nothing warns — not the runtime, not `@wcstack/lint` (the payload shape is not static). Use one of the two conforming shapes:
+
+```javascript
+class YenInput extends HTMLElement {
+  static wcBindable = {
+    protocol: "wc-bindable", version: 1,
+    properties: [
+      { name: "value", event: "yen-input:value-changed" },                                   // (a) detail IS the value
+      // { name: "value", event: "yen-input:value-changed", getter: (e) => e.detail.value }, // (b) detail is an object
+      // { name: "value", event: "input",                  getter: (e) => e.target.value },  // (b) reusing a DOM event
+    ],
+    inputs: [{ name: "value" }],   // declare settable members in BOTH lists (§3 modifiers table, `#init=`)
+  };
+  #onInput() {
+    this.dispatchEvent(new CustomEvent("yen-input:value-changed", { detail: this.value, bubbles: true }));
+  }
+}
+```
+
+Keep `element.value` and the extracted event value the same logical state (initial sync reads the property, later updates read the event). Do not expect the default to change: it is normative for every wc-bindable adapter, and DCC's `$bindables` reading `e.target[name]` is a producer-side `getter` choice, not a different default.
+
 ## 13. Testing the page headlessly (v1.33+)
 
 A `<wcs-state>` page is plain DOM, so it tests under vitest + happy-dom with no browser and no test-only API. The one-import form is **`@wcstack/testing`** (`npm i -D @wcstack/testing @wcstack/state @wcstack/server vitest happy-dom` — state and server are peers):
@@ -649,3 +672,4 @@ app.unmount();
 35. The **root `<wcs-state>` is required** — a page with only `mount=` volumes is a loud error. `mount` must be a static dotted path; `*` / `$` / `#` / `@` / empty segments raise and lint as `wcs/mount-path-invalid`. Mounting onto a slot the root already owns throws, as does writing a mount point's parent wholesale from the root.
 36. `setInitialState()` cannot re-set a tree that already has volumes or mounts on it — it raises, because a wholesale replacement would silently discard grafted data, accessors and the merged declaration surfaces. Write the individual paths you want to change.
 37. A volume (`<wcs-state mount>`) hosts getters, `$watch`, `$listKeys`, `$updatedCallback` and the connected/disconnected callbacks **relative to its mount path** — but **`$streams` raises** there, and `$commandTokens` / `$eventTokens` / `$on` are root-only (a mounted declaration warns and does nothing). These four are the only migrations that are not a plain rename.
+38. On your own `static wcBindable` element, a two-way binding writes **`getter(event)`** to state, defaulting to the whole **`e.detail`** — never `element[propName]`. Dispatch the value itself as `detail`, or declare `getter: (e) => e.detail.value` / `(e) => e.target.value` (§12). A wrapper-object `detail` without a `getter` silently stores the object and the write-back becomes `NaN`; lint cannot see it.
