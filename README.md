@@ -14,7 +14,7 @@ skills/wcstack-app/
     │                                 #   command-/event-tokens, $watch, spread rules
     ├── router-and-scaffold.md        # SPA routing, layouts, autoloader,
     │                                 #   index.html skeleton + SPA server fallback
-    └── io-node-catalog.md            # wcBindable catalog of 51 wcs-* tags
+    └── io-node-catalog.md            # wcBindable catalog of 52 wcs-* tags
                                       #   + signals quick reference
 ```
 
@@ -38,7 +38,7 @@ Copy `skills/wcstack-app/` into:
 
 ## Versioning
 
-The plugin version tracks the wcstack release the content was last verified against (currently **2.1.1**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
+The plugin version tracks the wcstack release the content was last verified against (currently **2.2.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
 
 ## Ground truth & contributions
 
