@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v2.1.1. The v2 breaking changes are all in `@wcstack/state` (see `state-binding.md` §2); the router surface changed only in v2.1.0, and only for accessibility (§5).
+Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v2.2.0. The v2 breaking changes are all in `@wcstack/state` (see `state-binding.md` §2); the router surface changed in v2.1.0 for accessibility only (§5), and additively in v2.2.0 — guards gained a third argument, an object return that loads data into the new `<wcs-router>.data` output, and a string return that redirects dynamically (§4); the README also corrected *when* `data-bind` parameters are visible to an element (§2).
 
 ## 1. Minimal SPA scaffold
 
@@ -20,7 +20,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/router@2.1.1/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@2.2.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -60,7 +60,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 | `fallback` | Displayed when no route matches |
 | `fullpath` | Full path including ancestors (read-only) |
 | `name` | For identification |
-| `guard` | Enables the guard. The value is the absolute redirect path used when the guard cancels |
+| `guard` | Enables the guard. The value is the absolute redirect path used when the guard cancels with a falsy return (a non-empty string return redirects there instead, v2.2+ — §4) |
 
 Route elements are **detached controllers** after parsing (v1.32): they are not part of the live DOM, cannot be found with `querySelector`, and cannot be bound with `data-wcs`. Match results (`params` / `typedParams` / `routeName`) are read from the **`<wcs-router>` element** — see §5. `guardHandler` can still be set from JS on a route object obtained before parsing.
 
@@ -102,7 +102,7 @@ A value that fails the type check **does not match that route** (no error; it fa
 | `"attr"` | Set via `setAttribute()` |
 | `""` (empty string) | Direct property (`element.userId = value`) |
 
-Parameters are assigned before `connectedCallback` fires. For undefined custom elements, assignment is deferred until `customElements.whenDefined()` resolves (compatible with the autoloader).
+**Timing (corrected in the v2.2.0 README)**: for elements that are *already defined* when the route renders — built-ins, and custom elements whose `define()` ran before the router stamped the content — parameters are assigned **before** `connectedCallback` fires. For a custom element that is **not yet defined**, assignment waits for `customElements.whenDefined()`, which resolves *after* the upgrade — so the `connectedCallback` run by the upgrade does **not** see them yet (autoloader-compatible, but `this.props.userId` read there is `undefined`, with no error). Either read the params in the `props` / `states` / attribute setter (or `attributeChangedCallback`) instead, or make sure the element is defined before the route renders (load its script before `@wcstack/router/auto`). When the params are needed in state anyway, prefer (c).
 
 **(c) From state (via wc-bindable)** — bind `typedParams` / `routeName` on `<wcs-router>` and consume the **parsed** results; no path-string regex needed (see §5 and §7).
 
@@ -167,7 +167,7 @@ Manages the document `<head>` per route. Stack-based: the last one connected win
   <wcs-guard-handler>
     <script type="module">
       export default function(toPath, fromPath) {
-        return document.cookie.includes('session=');   // boolean | Promise<boolean>
+        return document.cookie.includes('session=');   // true | false | object | string, or a Promise of one (v2.2+ — table below)
       }
     </script>
   </wcs-guard-handler>
@@ -245,7 +245,8 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 
 ```html
 <wcs-router data-wcs="path: path; typedParams: routeParams; searchParams: query;
-                      routeName: routeName; navigateUrl: navigateUrl; replaceUrl: replaceUrl">
+                      routeName: routeName; data: routeData;
+                      navigateUrl: navigateUrl; replaceUrl: replaceUrl">
 ```
 
 | Member | Direction | Notes |
@@ -254,11 +255,12 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 | `params` / `typedParams` | output | Merged params of the matched chain; `typedParams` type-converted (`:id(int)` → number). `{}` on fallback / before init |
 | `searchParams` | output | Query as `Record<string,string>`; duplicate keys last-wins, `URLSearchParams` decoding; `{}` when none |
 | `routeName` | output | `name` of the deepest matched route (fallback route's `name` on a 404); `""` when unnamed |
+| `data` (v2.2+) | output | What the current navigation's guards **returned as an object** (§4 loader) — `null` when no guard returned one, including before init; a query-only same-match keeps the previous value. The one member that is **not** frozen: it is the guard's own object, passed through; the router neither copies nor caches it. Fires `wcs-router:data-changed` |
 | `navigateUrl` | write (null-idle transient) | Assign a target to **push**-navigate; resets itself to `null` on finish; `null`/`""` writes are no-ops |
 | `replaceUrl` | write (null-idle transient) | Same contract, but **replaces** the history entry |
 | `basename` | input | Mirrors the attribute |
 
-- Outputs are **read** when the binding attaches, then streamed via change events — a binding attaching after the first route resolution misses nothing. On a committed navigation all values commit first, then events fire `data` → `params` → `routeName` → `search` → `path`, each only when changed (`data` by identity); a guard-rejected navigation updates and fires nothing. The exposed objects are **frozen snapshots** — copy, don't mutate.
+- Outputs are **read** when the binding attaches, then streamed via change events — a binding attaching after the first route resolution misses nothing. On a committed navigation all values commit first, then events fire `data` → `params` → `routeName` → `search` → `path`, each only when changed (`data` by identity); a guard-rejected navigation updates and fires nothing. The exposed objects are **frozen snapshots** — copy, don't mutate (`data` is the exception: it is owned by the guard that returned it).
 - **Choosing the write surface**: pagination/tabs (back button should step through) → `navigateUrl = "?page=2"`; search boxes/filters (history should not record keystrokes) → `replaceUrl = "?q=" + …` with `<wcs-debounce>` in front.
 - Commands `navigate(path)` / `replace(path)` are also declared (invocable via command tokens).
 
@@ -448,6 +450,7 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 - Write the tag directly inside the route and receive parameters via `data-bind` (§2).
 - **Defining is outside the router's responsibility** — the autoloader (§6) or a manual `customElements.define()` is required separately.
 - Alternative pattern (proven in router-spa): create no custom elements; put only `<wcs-head>` + static content in the routes, and switch the data-bound page DOM via `routeName`-derived getters in `<template data-wcs="if: ...">` directly under body. (Before v1.32 this was forced by §9-3; since the binder protocol it is a choice — bindings inside routes now work — but it remains the pattern the official demo ships.)
+- **Pick the shape per page, not per project (v2.2.0 README, "Where route content lives").** The route body is the default: stamped on entry, removed on exit, bindings bound on insertion, and everything the router offers — `<wcs-head>`, `focus="heading"` / `announce=`, the per-route view transition — is keyed to it. Switch to the body-level `<template data-wcs="if: …">` form **when the DOM must outlive the navigation** (a `<video>` mid-playback, a half-filled form, a scrolled list, a drawn `<canvas>`): stamping is a teardown, and a route body is rebuilt on every entry. What the exception costs: `focus="heading"` finds no heading in the empty route body and falls back to the browser-default reset (`announce=` still reads `document.title`), and a view transition wraps the state branch update rather than the route swap. router-spa shows both — About is the default shape, the product pages are the exception.
 
 ## 9. Pitfall checklist
 
@@ -461,3 +464,6 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 8. `undefined` is never written to an element (write-skip) — if a getter returns `undefined`, `<wcs-fetch>` stays silent. The auto-fetch guard compares against the last url **actually fetched**, and a state that fetches nothing (empty/`undefined` url) does not update it: leaving a detail route and coming straight back to the same id re-enters with the same url and is **skipped**. Use `command.fetch` when a genuine re-run is wanted.
 9. Autoloader load failures are not retried. (Before v1.31 a failed load additionally wedged every later lazy load on the page; fixed — waiters now settle on failure too.)
 10. Route guards require `script-src blob:` under a CSP and have no external-file form (§4).
+11. **`data-bind` params are invisible to the upgrade-time `connectedCallback` of a not-yet-defined element** — they are assigned after `whenDefined()` resolves, which is after the upgrade (an already-defined element does get them before `connectedCallback`). Read them in a setter / `attributeChangedCallback`, define the element before the router renders, or bind `typedParams` on `<wcs-router>` into state (§2).
+12. **A guard that forgets to `return` still rejects** (every falsy value cancels), and an **object return enters the route** — a guard that hands back the fetched record by accident also lets the user in. Do the authorization check first, then return `true` / a string / an object deliberately (§4).
+13. **`data` is `null` on any navigation whose guards return no object** — wrap content that reads it in `<template data-wcs="if: routeData">`. The router does not cache it: revisiting the same route with other params loads again, so keep anything worth reusing in your own state.
