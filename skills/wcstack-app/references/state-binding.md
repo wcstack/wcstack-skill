@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v2.2.0.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md`. All verified against real code at v2.3.0.
 
 ## 1. CDN Loading
 
@@ -21,13 +21,13 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@2.2.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@2.3.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
 `dist/auto.min.js` is a **self-contained bundle with zero static imports**, so the usual ESM caveat — `integrity` covers the entry but not what it imports — does not apply: one hash covers every line of wcstack that runs. Rules that make it work:
 
-- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@2.2.0/dist/auto.min.js` is a 200).
+- **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@2.3.0/dist/auto.min.js` is a 200).
 - **`crossorigin` is not needed** — `type="module"` is always fetched in CORS mode.
 - **Get digests from the GitHub Release** (a table in the body, plus a machine-readable `sri.json` asset), computed from the published tree. Never from jsDelivr's data API: the point of SRI is not trusting the CDN, so letting it self-report is circular.
 - **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. `dist/index.esm.min.js` is no longer published (v1.26); named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127 / Safari 18; not Firefox).
@@ -98,7 +98,7 @@ There is **one state tree per rootNode** (document or shadowRoot). To split stat
 - The **root `<wcs-state>` is required** and may be empty (`<wcs-state></wcs-state>`). Volumes with no root are a loud error.
 - **Load order does not matter.** A volume connected before the root is grafted when the root registers; reads under a not-yet-loaded volume return `undefined` and are *not* reported as missing paths.
 - The mount path is **static and dotted** (`settings.theme` is fine). `*`, `$`, `#`, `@` and empty segments are rejected — at runtime and as `wcs/mount-path-invalid` (error) in lint. Changing `mount` after initialization is ignored, and **warns as of v2.1.0** (it was silently ignored on 2.0.0); setting it before initialization stays silent. Mounting onto a slot the root already owns throws, as does replacing a mount point's parent wholesale from the root (`this.settings = {...}` under `mount="settings.theme"`).
-- A volume may declare **getters, `$watch`, `$listKeys`, `$updatedCallback`, `$connectedCallback` / `$disconnectedCallback`** — all relative to its own mount path. It may **not** declare `$streams` (raises); `$errorCallback` (v2.2+) is root-only — a binding failure is reported once, to the tree's owner, and a volume declaring it is ignored; and `$commandTokens` / `$eventTokens` / `$on` belong on the root.
+- A volume may declare **getters, `$watch`, `$listKeys`, `$updatedCallback`, `$connectedCallback` / `$disconnectedCallback`** — all relative to its own mount path. It may **not** declare `$streams` (raises); `$recursion` and `**` getters (v2.3+, §14) are refused before grafting; `$errorCallback` (v2.2+) is root-only — a binding failure is reported once, to the tree's owner, and a volume declaring it is ignored; and `$commandTokens` / `$eventTokens` / `$on` belong on the root.
 - Cross-module reads are ordinary paths: a root getter reading `this["cart.total"]` tracks the dependency like any other. The v1 "cross-state read" problem disappears with the name dimension.
 
 **Migrating from v1 named states** — `name=` and `path@name` were removed in v2:
@@ -287,13 +287,13 @@ Path getters are **lazy**; "does this getter run?" depends on where demand comes
 
 | API | Description |
 |---|---|
-| `this.$getAll(path, indexes?)` | Get all values of a wildcard path as an array (for aggregation). `indexes` is a **prefix** over the path's wildcards — missing levels expand fully, `[]` always means "every match"; **more than the `*` count throws `wcs/index-arity`** (v1.31; earlier versions silently dropped the surplus and returned a plausible wrong value). **Omitting `indexes` entirely defaults to the enclosing loop context** (v1.32) — `this.$getAll("regions.*.prefectures.*.population")` inside a `regions.*` getter narrows to the current region. If the path shares **no** wildcard level with a loop context that holds indexes, `$getAll` **throws** rather than silently reading everything — pass `[]` explicitly for "every match" there |
+| `this.$getAll(path, indexes?)` | Get all values of a wildcard path as an array (for aggregation). `indexes` is a **prefix** over the path's wildcards — missing levels expand fully, `[]` always means "every match"; **more than the `*` count throws `wcs/index-arity`** (v1.31; earlier versions silently dropped the surplus and returned a plausible wrong value). **Omitting `indexes` entirely defaults to the enclosing loop context** (v1.32) — `this.$getAll("regions.*.prefectures.*.population")` inside a `regions.*` getter narrows to the current region. If the path shares **no** wildcard level with a loop context that holds indexes, `$getAll` **throws** rather than silently reading everything — pass `[]` explicitly for "every match" there. **v2.3**: an `indexes` that is not an array (`null`, a number) throws a diagnostic naming the argument and the two valid forms, instead of a raw `TypeError` |
 | `this.$setAll(path, indexes, value, options?)` | v1.32+: write to **every** address a wildcard path matches, in place — see below |
 | `this.$resolve(path, indexes, value?)` | Read/write at specific indexes. The index count must match the path's `*` count **exactly** (v1.31: `wcs/index-arity`; loop-context-derived indexes when the argument is omitted are deliberately unchecked) |
 | `this.$postUpdate(path)` | Manually emit an update notification |
 | `this.$trackDependency(path)` / `this.$untrackDependency(fn)` | Manually register / suppress dependencies |
 | `this.$stateElement` | IStateElement access |
-| `this.$1`, `this.$2`, ... | Loop indexes |
+| `this.$1`, `this.$2`, ... | Loop indexes. **v2.3**: `$N` must name an existing wildcard level — `$1`…`$128`, no leading zeros; `$129` / `$0` / `$01` now **throw** (`wcs/index-param-range`) instead of resolving as an ordinary property and reading `undefined` |
 
 ### `$setAll` — bulk writes that keep the array (v1.32+)
 
@@ -311,6 +311,8 @@ this.$setAll("users.*", [], rows, { spread: true });               // one entry 
 - `undefined` is never written ("skip this address" in all three forms — a mapper that forgets to `return` wipes nothing); use `null` to clear. Returns the number of addresses written.
 - `indexes` is a prefix exactly as in `$getAll` but **required** — writes get no implicit loop context, so inside a `for` template `$setAll("users.*.selected", [], true)` still means *every* user, never the current row.
 - Not a shortcut for the dependency walk: each write is enqueued individually (cost matches the hand-written loop); rendering still coalesces into one batch.
+
+**A path's depth is fixed in its string.** `nodes.*.children.*.total` is depth 2 and nothing stretches it to 3. For a tree whose depth is decided by the data, declare `$recursion` and write `**` — §14.
 
 ### Iron rule of state updates
 
@@ -487,7 +489,7 @@ Key rules (each of these fails silently or surprisingly if ignored):
 4. **A headless wildcard row watch requires `$listKeys`** — path expansion is driven by the list's `for` binding, and declaring a watch deliberately does not register the path as a list. With neither a rendered `for` nor `$listKeys`, assigning the array fires the row watch **zero** times. And without `$listKeys`, a whole-array assignment fires **every** row with `prev === undefined`; with it, the key match decomposes into per-field writes, so only changed rows fire and `prev` is a real scalar. Scalar paths (including nested `user.name`) are headless with no such condition.
 5. **Handler exceptions are isolated** — reported to the console (and the devtools timeline as `state:watch-error`), remaining watches and stream restarts still run. This differs from `$connectedCallback`/`$updatedCallback`, which fail loudly.
 6. **Write chains are bounded at 32 links** — a handler's writes form a new batch; mutually-writing watches are cut off with a console error (`state:watch-chain-limit` in devtools). Nothing is rolled back.
-7. **Not executed on a mounted `bind-component` scope (v2)** — a mounted component does not run declaration surfaces at all; the declaration is ignored with a **one-time console warning** naming the root state (v1 blanked it silently). Declare it on the root, or on a volume (`<wcs-state mount>` hosts `$watch` / `$listKeys` / `$updatedCallback`; `$streams` stays root-only). A plain, unwired Shadow child owns an independent tree and can still declare it.
+7. **Not executed on a mounted `bind-component` scope (v2)** — a mounted component does not run declaration surfaces at all; the declaration is ignored with a **one-time console warning** naming the root state (`wcs/mount-dollar-declaration`; v1 blanked it silently). Declare it on the root, or on a volume (`<wcs-state mount>` hosts `$watch` / `$listKeys` / `$updatedCallback`; `$streams` and — as of v2.3 — `$recursion` stay root-only). A plain, unwired Shadow child owns an independent tree and can still declare it.
 8. **SSR never runs watches** — otherwise handler side effects would execute on both server and client.
 
 Tooling knows the declaration (v1.27): `@wcstack/lint` and the VS Code extension validate it — `wcs/watch-declaration-invalid` (error: `@` cross-state key, `$`-prefixed key, empty path segment, non-function handler, and — v1.29 — a whole `$watch` value that is definitely not an object) and `wcs/watch-path-missing` (warning: the key does not exist in the state definition — unlike a binding typo, which visibly fails to render, a `$watch` typo silently never fires). Since v1.28 the runtime's own declaration errors carry the same `[wcs/watch-declaration-invalid]` code plus a lint pointer, so console and CLI speak one vocabulary; v1.31 adds the missing-path side — a `$watch` key that provably does not resolve gets a `console.warn` (`wcs/watch-path-missing`) at declaration time, even for a single segment. And v1.29 makes firing measurable: the runtime emits `state:watch-fired`, which the devtools coverage tab joins against the declared `$watch` keys — each path shows *fired ×N*, *never*, or *prerequisite-missing*, distinguished from "never" so the view does not cry wolf. Since v1.30 the prerequisite check is exact — a wildcard's list counts as satisfied when it is `for`-bound **or** `$listKeys`-declared (the same two conditions rule 4 above states for headless firing), and when neither holds the note says assertively: "this watch can never fire".
@@ -503,9 +505,10 @@ Tooling knows the declaration (v1.27): `@wcstack/lint` and the VS Code extension
 - **Unresolved wired paths warn at binding time (v1.31)**: a bound path that provably does not resolve (`user.nmae`) gets one `console.warn` with `wcs/binding-path-missing` + did-you-mean; a top-level typo throws with the same wording (it used to throw an internal `address.parentAddress is undefined`). The check **under-approximates**: `null`/`undefined` parents, rows of an empty list, sub-properties of a getter's return, mapped `bind-component` child scopes, and `$` namespaces all stay silent — **no warning proves nothing**; run lint for the exhaustive check.
 - **One failing binding is confined to that binding (v1.31)**: if applying a binding throws, the rest of the batch, `$updatedCallback`, `$watch`, and `$streams` restarts all still run (before v1.31 one throw took the whole batch down, leaving a half-updated DOM and silently skipping every watch handler). The failure goes to `console.error` and devtools (`state:binding-apply-error`). The shared stance across every limit — propagation hops (32), watch chains (32), apply failures — is **report and continue; values and DOM are never rolled back**.
 - **The binding grammar is machine-readable (v1.28+)** — tooling-facing, never needed in app code: `@wcstack/state/manifest` (and `dist/wcs-manifest.json`) now carries the complete vocabulary — modifiers (`prevent`/`stop`/`ro`, `init`/`sync`, the `on` event prefix), the `$1..$N` index params, and every binding type — and the new `@wcstack/state/parser` subpath exposes the canonical binding parser (DOM-free and pure; no position info; invalid syntax throws). This is the parser the lint CLI, the VS Code extension, and devtools all consume as of v1.29, so their diagnostics cannot drift from the runtime.
+- **Aggregates over a list nothing renders are correct as of v2.3**: the list-diff baseline that `$getAll` reads and the dependency walk compares against moved from the render path to a **state-owned ledger**, committed at the end of each update batch. Before that it was written only when a `for` rendered the list, so a structural write to an unrendered list (a sort, an insert, a parent re-assignment) minted a fresh `ListIndex` generation while the child ledgers still pointed at the old one — the aggregate went permanently stale or threw `ListIndexes not found`. A recursive `$setAll` (§14) commits what it observed for the same reason; the fixed-arity `$setAll` still does not.
 - **Configuration**: `bootstrapState({ locale, debug, enableMustache, bindAttributeName, tagNames: { state }, enableDirectionalInitialSync, enablePropagationContext, enableContractAnalyzer })`.
-- **TypeScript**: Wrap with `defineState({...})` for `this` type completion (zero runtime cost).
-- **SSR**: `<wcs-state enable-ssr>` + `renderToString()` from `@wcstack/server`.
+- **TypeScript**: Wrap with `defineState({...})` for `this` type completion (zero runtime cost). Keys containing `**` (§14) are typed `any` through a pattern index signature — ordinary dot paths keep their resolved types, and the VS Code extension's preamble declares the same signature so the editor, `wcs-tsc` and `tsc` agree.
+- **SSR**: `<wcs-state enable-ssr>` + `renderToString()` from `@wcstack/server`. **v2.3**: the `<wcs-ssr>` hydration snapshot no longer evaluates the state object's **own enumerable getters** (`{ get count() { … } }` written in the object literal). They used to be evaluated with the raw object as `this`, so a path getter serialized as `null` and a getter calling `$getAll` threw and took the whole page's SSR down. Derived values are recomputed on the client from the same definition — code that read a getter's value out of the snapshot must read the data it derives from instead.
 
 ## 12. Component mechanisms — DCC vs `bind-component` (they are exclusive, v1.26)
 
@@ -655,6 +658,135 @@ app.unmount();
 - **Bare Node (no vitest)**: `const restore = installGlobals(new Window({ url: "http://localhost/" }))` from `@wcstack/server`, then **dynamic-import `@wcstack/state` after it** (a static import at the top of the file registers elements happy-dom cannot construct), run the same steps, `restore()`.
 - **Blind spots that still need one browser e2e** (Playwright): happy-dom replaces nodes on a late `customElements.define`, and its event timing differs from real browsers.
 
+## 14. Recursive paths — `$recursion` and `**` (v2.3+)
+
+A path burns its depth into the string: `nodes.*.children.*.total` is depth 2 and nothing stretches it to 3 when the tree grows a level. `$recursion` declares **where the shape repeats**, and `**` means "however deep this is", so one getter covers every depth.
+
+```javascript
+export default {
+  $recursion: { "nodes.*": "children.*" },        // anchor → repeating sub-path
+
+  nodes: [ { value: 1, selected: false, children: [ /* …same shape… */ ] } ],
+
+  // One getter, every depth. `**` is bound to the depth being evaluated.
+  get "nodes.**.total"() {
+    return this["nodes.**.value"]
+         + this.$getAll("nodes.**.children.*.total").reduce((a, b) => a + b, 0);  // indexes omitted = this depth
+  },
+  get treeTotal() {                                // `[]` = union of every depth
+    return this.$getAll("nodes.**.value", []).reduce((a, b) => a + b, 0);
+  },
+  clearSelection() { this.$setAll("nodes.**.selected", [], false); },
+};
+```
+
+**`**` is authoring notation only — it never reaches the engine.** Reading a concrete path (`nodes.*.children.*.total`) materializes the getter for *that* depth on demand, and everything downstream — `PathInfo`, the dependency graph, `$1`…`$n`, `$resolve`, the list diff — still sees an ordinary fixed-arity path.
+
+### Declaring the recursion point
+
+`$recursion` maps one **anchor** to the **repeating sub-path** one level down. Both name the *element* of a list: a fixed property chain ending in `.*`, never the list itself, and never carrying an index segment (`"nodes.0.items.*"` is refused — the recursion is over the shape of the tree, not one row).
+
+```javascript
+$recursion: { "nodes.*": "children.*" }     // nodes[i].children[j].children[k]…
+$recursion: { "data.tree.*": "kids.*" }     // a deeper anchor is fine
+$recursion: { "nodes.*": "nodes.*" }        // self-similar spelling is fine too
+```
+
+The declaration is what gives `**` a meaning at all — with no `$recursion`, `**` is not a path character (`wcs/recursion-unsupported`), so it can never quietly become a descendant search. **This version takes exactly one self-recursive anchor per state**, and it is **root-only**: a volume (`mount=`) declaring `$recursion` or a `**` getter is refused before grafting, and a mounted `bind-component` scope gets the `wcs/mount-dollar-declaration` notice like the other `$` surfaces.
+
+### What `**` means where — bound vs union
+
+Whether `**` is *bound* to one depth or *unions* every depth is decided by context, the same split `*` already has between "the current row" and "every row":
+
+| Where `**` appears | What it means |
+|---|---|
+| A getter key — `get "nodes.**.total"()` | Bound to the depth being evaluated |
+| A path read inside that getter — `this["nodes.**.value"]` | Bound to the same depth |
+| `$getAll(path)`, indexes **omitted** | Bound to that depth; only the wildcards *after* `**` expand |
+| `$getAll(path, [])`, **explicit** | **Union of every depth** — depth-first, pre-order, ascending index |
+| `$getAll(path, [i, …])` | Refused: a prefix cannot say which depth it applies to (`wcs/recursion-getall-form`) |
+| `$setAll(path, [], value)` | Broadcast to every depth, same order |
+| `$resolve` / `$postUpdate` / `$trackDependency`, `$watch` and `$listKeys` keys, `data-wcs` markup, direct assignment | Refused (`wcs/recursion-unsupported`) |
+
+The **bound** forms need a depth to bind to, so they resolve only **inside** a recursive getter, an ordinary row getter under the anchor, or an event handler bound to such a row — each carries a real `ListIndex` to read the depth from. Read `this["nodes.**.value"]` at the top level and you get `wcs/recursion-context`, not a guess. The depth comes from the **innermost evaluation frame only**: a plain getter that a recursive getter calls has no row of its own and gets `wcs/recursion-context` too — read `**` in the recursive getter and pass the value on. The **union** form needs no depth and can be read anywhere.
+
+### Aggregating without counting grandchildren twice
+
+This is the whole game, and the failure is a plausible wrong number rather than an error:
+
+```javascript
+get "nodes.**.total"() {                                        // ✅ omitted → direct children only
+  return this["nodes.**.value"] + this.$getAll("nodes.**.children.*.total").reduce((a, b) => a + b, 0);
+}
+get "nodes.**.total"() {                                        // ❌ `[]` → every depth; the getter asks for itself
+  return this["nodes.**.value"] + this.$getAll("nodes.**.children.*.total", []).reduce((a, b) => a + b, 0);
+}                                                               //    in practice: wcs/getter-cycle
+get treeTotalWrong() { return this.$getAll("nodes.**.total", []).reduce((a, b) => a + b, 0); }   // ❌ too big, silently
+get treeTotal()      { return this.$getAll("nodes.**.value", []).reduce((a, b) => a + b, 0); }   // ✅ union raw values
+get treeFromRoots()  { return this.$getAll("nodes.*.total",  []).reduce((a, b) => a + b, 0); }   // ✅ or sum the roots
+```
+
+**Union raw values, or sum the roots — never union something that already aggregates its own subtree.** Whether an aggregate double-counts is not decidable from the path string, so **no diagnostic catches this one**.
+
+### Writing: broadcast only
+
+`$setAll` takes `**` in exactly one form — `[]` plus a plain value — and returns the number of addresses written. Every other form is refused *before* the walk writes anything, so a rejected call leaves the tree untouched:
+
+| Refused form | Why |
+|---|---|
+| a non-empty prefix | A prefix cannot say which depth it applies to (`wcs/recursion-setall-form`) |
+| omitted indexes | The write API takes no evaluation context, so there is no depth to bind — `[]` is mandatory |
+| a mapper function | `(current, ...indexes)` has a different arity at every depth |
+| `{ spread: true }` | Handing a flat array to a tree needs the author to know the walk order |
+| the structure itself — `nodes.**`, `.children`, `.children.*`, `.children.length`, `nodes.**.children.0`, and (multi-segment repeat) the object on the way to the list | Writing it invalidates the child addresses this very write already resolved (`wcs/recursion-structural-write`) |
+| `nodes.**.total` or a path inside its value | A recursive getter has no setter (`wcs/recursion-readonly`) |
+
+**The read-only rule does not depend on spelling `**`.** A recursive getter's concrete expansions — `nodes.*.total`, `nodes.*.children.*.total`, `nodes.1.total` — are refused at the write entry too, whether the write is a fixed-arity `$setAll`, a `$resolve(path, indexes, value)` or a direct assignment, and whether or not that depth has been materialized. Before this check an unmaterialized expansion looked like a missing key, and the write landed on the node object, pinning that value as the getter's cached result.
+
+### The input has to be a tree
+
+The walk refuses reaching the **same array instance** twice: from an ancestor it is `wcs/recursion-cycle`, otherwise two nodes share one child list (`wcs/recursion-shared-list`). Give every node its own `children` array — sharing an *empty* one is fine (no rows to alias). The ceiling is **128 wildcard levels** (`wcs/recursion-depth-exceeded`, naming the anchor, depth, path and limit); it trips before the getter stack's own 128-frame limit (`wcs/getter-depth-exceeded`), so a deep tree is reported as deep instead of accused of a cycle. Nothing is truncated — a partial aggregate would be a wrong number reported as a right one.
+
+**Known limitation (#256): replacing row objects while keeping their `children` arrays leaves that row's aggregate stale.** After `this.nodes = this.nodes.map(n => ({ ...n }))` the child list's ledger is still keyed by the array, so its rows stay attached to the *old* row object; once that row's aggregate has been read, the next leaf update below it leaves `nodes.*.total` stale while the leaf, the deeper totals and every `[]` union stay right — so nothing complains. Write rows in place through paths (`$resolve` / `$setAll`), keep the row objects (`[...this.nodes]`), or replace the whole subtree with a deep clone. This is a list-identity limit, not a `**` limit: hand-written multi-level getters behave the same way.
+
+### Rendering the tree
+
+`**` cannot appear in markup and there is no recursive `<template>`. A tree is drawn by a **self-referential component** — one custom element whose shadow mounts itself for each child, so only one level of path is ever used inside a scope (`node.children.*`) and `node.total` resolves through the mount onto the root state's recursive getter.
+
+```html
+<template data-wcs="for: nodes"><tree-node data-wcs="state: ."></tree-node></template>
+```
+```javascript
+const TEMPLATE = `
+  <wcs-state bind-component="state"></wcs-state>
+  <span data-wcs="textContent: label"></span><span data-wcs="textContent: total"></span>
+  <button data-wcs="onclick: addChild">+ child</button>
+  <template data-wcs="for: children"><tree-node data-wcs="state: ."></tree-node></template>`;
+
+customElements.define("tree-node", class extends HTMLElement {
+  state = {                     // ← methods only: `label` / `value` / `children` come from the mount
+    addChild() { this.children = [...this.children, { label: "new", value: 5, children: [] }]; },
+  };
+  constructor() { super(); this.attachShadow({ mode: "open" }); }
+  connectedCallback() {                         // ← build the shadow HERE, not in the constructor
+    if (this.shadowRoot.childNodes.length === 0) this.shadowRoot.innerHTML = TEMPLATE;
+  }
+});
+```
+
+Two traps, both hit for real and both quiet:
+
+- **The component's `state` must not declare the keys it is mounted over.** Methods and unrelated private keys are fine; a `node` / `children` of its own is not — an own key is private (rule R1, §12), so it hides the mount and the child renders its own default and never descends. The runtime names this one: `wcs/mount-own-key-shadow`.
+- **Build the shadow in `connectedCallback`, not the constructor.** Assigning `innerHTML` in the constructor upgrades the elements inside `<template>` on implementations that do not keep template content inert, and a self-referential element then recurses forever in its own constructor. Real browsers survive it, which makes it environment-dependent rather than an honest crash.
+
+Fixed depths need none of this: expanded paths are ordinary paths, so nested `for` templates bind `nodes.*.total` like anything else. Working demo: `packages/state/examples/recursive-tree/`; design: `docs/state-recursive-path-design.md`.
+
+### Not in this version (each is a diagnostic, never a reinterpretation)
+
+More than one anchor, mutual recursion, a wildcard mid-anchor, a second `**` in one path; recursive **setters**; a `**` getter whose suffix names the structure (`get "nodes.**.children"()`, `.children.*`, `.children.length`); two `**` getters expanding to the same concrete path; a concrete getter with the same name as an expansion (`get "nodes.*.children.*.total"()`); `get "nodes.**"` (that names the node itself); a recursive `<template>`, a `$depth` variable, and a public `maxDepth` option.
+
+**Diagnostics.** `wcs-validate` and the VS Code extension (1.14+) report every statically decidable form under the same codes and stay silent where the declaration cannot be read statically (an identifier reference, a spread, a computed key, a `class` state). **Runtime-only** — the linter does not emit them: `wcs/recursion-context`, `wcs/recursion-shared-list`, `wcs/recursion-cycle`, `wcs/recursion-depth-exceeded`, plus `wcs/getter-depth-exceeded` and `wcs/index-param-range`.
+
 ## Pitfall Checklist
 
 1. The runtime does not observe `this.user.name = "Bob"` — always use `this["user.name"] = "Bob"`; lint reports `wcs/nested-assign`.
@@ -698,3 +830,9 @@ app.unmount();
 39. A binding that throws while applying (a getter or filter threw, a structural directive failed) is **isolated and reported to `console.error`** — that node stays stale, nothing else is rolled back, and the page shows no message. Declare `$errorCallback(error, { path, bindingType, node })` on the **root** state (v2.2+, §11) to route the report in-page (`this.loadError = …` + a `textContent:` bind). It does not cover `$watch` handlers or `$connectedCallback` / `$updatedCallback` exceptions, and a volume declaring it is ignored.
 40. `this.form.name` inside a getter tracks **`form` only** — the getter never re-runs when `form.name` is edited through a binding. Read `this["form.name"]`; `wcs-validate` / VS Code report `wcs/getter-untracked-read` (v2.2) when the document writes that nested path. Reads inside a setter are never tracked, and the same-value guard skips primitives only (§6).
 41. Under `require-trusted-types-for 'script'` the `html:` / `innerHTML:` bindings and `<wcs-fetch target>` need a sanitizing policy you install (v2.2 reports once with the fix; ≤2.1 failed silently), and `<wcs-layout>` / `<wcs-worker>` need `trusted-types wcstack` in the CSP (§2).
+42. `**` (v2.3, §14) is **authoring notation for the state definition only**. It is refused in `data-wcs` and mustache, in `$watch` / `$listKeys` keys, in `$resolve` / `$postUpdate` / `$trackDependency`, and in any assignment (`wcs/recursion-unsupported`) — and without a `$recursion` declaration it is not a path character at all. Draw the tree with a self-referential component, not with a recursive template.
+43. **Unioning an aggregate double-counts, and nothing catches it.** `$getAll("nodes.**.total", [])` adds every node's total, each of which already folds its own subtree — a plausible number that is too big. Union raw values (`nodes.**.value`) or sum the roots (`nodes.*.total`). Inside the recursive getter the same mistake shows up as `wcs/getter-cycle` instead, because the getter ends up asking for itself.
+44. A **bound** `**` (`this["nodes.**.value"]`, an index-omitted `$getAll`) reads its depth from the innermost evaluation frame only. From the top level, or from a plain getter that a recursive getter calls, it is `wcs/recursion-context` — read it in the recursive getter and pass the value on, or pass `[]` to union every depth.
+45. A recursive `$setAll` takes **`[]` plus a plain value** and nothing else — no prefix, no omitted indexes, no mapper, no `{ spread: true }` — and may not target the structure (a node, a child list, its `length`) or a recursive getter. A recursive getter is read-only **at every spelling**: `nodes.*.children.*.total` and `nodes.1.total` are refused too, materialized or not (`wcs/recursion-readonly`).
+46. The recursion input must be a **tree**: reaching the same array instance twice is `wcs/recursion-shared-list` / `wcs/recursion-cycle`, and 128 wildcard levels is the ceiling. And replacing row objects while keeping their `children` arrays leaves that row's aggregate stale with no warning (#256) — write rows in place, keep the row objects, or deep-clone the subtree.
+47. A self-referential component must not declare its own key for what the mount provides (it would hide the mount — `wcs/mount-own-key-shadow`), and must build its shadow in `connectedCallback`, not the constructor (a constructor `innerHTML` recurses forever where `<template>` content is not inert).

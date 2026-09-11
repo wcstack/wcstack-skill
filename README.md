@@ -11,7 +11,8 @@ skills/wcstack-app/
 ├── SKILL.md                          # Workflow, cheat sheet, silent-failure matrix
 └── references/
     ├── state-binding.md              # Full data-wcs syntax, 46 built-in filters,
-    │                                 #   command-/event-tokens, $watch, spread rules
+    │                                 #   command-/event-tokens, $watch, spread rules,
+    │                                 #   $recursion / ** for trees
     ├── router-and-scaffold.md        # SPA routing, layouts, autoloader,
     │                                 #   index.html skeleton + SPA server fallback
     └── io-node-catalog.md            # wcBindable catalog of 52 wcs-* tags
@@ -38,7 +39,7 @@ Copy `skills/wcstack-app/` into:
 
 ## Versioning
 
-The plugin version tracks the wcstack release the content was last verified against (currently **2.2.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
+The plugin version tracks the wcstack release the content was last verified against (currently **2.3.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
 
 ## Ground truth & contributions
 
