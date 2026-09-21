@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md` / `packages/state/docs/scan.md` / `docs/state-scan-design.md`, and the state README's "Keyed selection" and "Preparing for 3.0" sections (v2.6). All verified against real code at v2.6.1.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md` / `packages/state/docs/scan.md` / `docs/state-scan-design.md`, and the state README's "Keyed selection" and "Preparing for 3.0" sections (v2.6). All verified against real code at v3.0.0; the 2.x ↔ 3.0 comparisons (the parts tagged **v3.0+**, and §16) also against `docs/migration-v3.md`.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@2.6.1/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -31,6 +31,45 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 - **`crossorigin` is not needed** — `type="module"` is always fetched in CORS mode.
 - **Get digests from the GitHub Release** (a table in the body, plus a machine-readable `sri.json` asset), computed from the published tree. Never from jsDelivr's data API: the point of SRI is not trusting the CDN, so letting it self-report is circular.
 - **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. `dist/index.esm.min.js` is no longer published (v1.26); named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127 / Safari 18; not Firefox).
+
+### Loading only the features a page uses — split entries (v3.0+)
+
+`/auto` (or `@wcstack/state` + `bootstrapState()`) still ships every feature and **stays the default**: a page that uses everything is smaller as one file than as core plus features, and the one-hash SRI story above holds only for `auto.min.js`. Use the split form only when the user asks for fewer bytes and the page deliberately leaves features out:
+
+```html
+<script type="importmap">
+{
+  "imports": {
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/split/features/formats.js"
+  }
+}
+</script>
+<script type="module">
+  import { bootstrapState, installFeatures } from '@wcstack/state/core';
+  import temporal from '@wcstack/state/features/temporal';  // $watch / $scan / $streams
+  import formats from '@wcstack/state/features/formats';    // every filter except `not`
+  installFeatures([temporal, formats]);
+  bootstrapState();
+</script>
+```
+
+| Entry | Adds |
+|---|---|
+| `@wcstack/state/core` | `data-wcs`, `for` / `if`, path getters, events, `$command` / `$on`, `$eq*`, the `not` filter, `bootstrapState`, `installFeatures` |
+| `…/features/temporal` | `$watch`, `$scan`, `$streams` |
+| `…/features/scopes` | `bind-component`, `mount=` volumes, a mounted component's exported getters, DCC (`data-wc-definition`) |
+| `…/features/recursion` | `$recursion` and `**` |
+| `…/features/ssr` | `enable-ssr` (server rendering and hydration) |
+| `…/features/formats` | every built-in filter except `not` (§7) |
+| `…/features/devtools` | the DevTools hook source |
+| `…/features/diagnostics` | the development-time path warnings: a bound / `$watch` / `$scan` path that does not resolve on the state (`wcs/binding-path-missing`, with did-you-mean). Thrown errors keep their full messages without it |
+| `@wcstack/state/define` | `defineState` and the types — no runtime |
+
+- **Never load the split form through `esm.run`.** Its `+esm` endpoint re-bundles each entry and inlines the shared core chunk into every one, so each entry carries its own engine and a feature installs into a copy the core never sees — the page throws `[wcs/feature-not-installed]` although `installFeatures` ran. Use the version-pinned plain jsDelivr path (it does not read `exports`: name the file under `dist/split/`) or a bundler; then every relative import resolves to the same chunk URL and the engine is evaluated once. Integrity needs an import map with `integrity` for every entry and chunk (Chrome 127 / Safari 18; not Firefox) — `docs/sri.md` §5.1.
+- A missing feature is loud, not silent: a declaration that needs one throws `[wcs/feature-not-installed] … install it with installFeatures([...]) from "@wcstack/state/features/…"` when the state is defined (`bind-component` on a page without `features/scopes` included), and a filter whose feature is missing throws `[wcs/filter-unknown]` when the bindings are planned. **The one silent omission is `features/diagnostics`**: without it a mistyped bound path gets no console warning at all. Keep it (or `/auto`) while developing, and rely on lint either way.
+- `installFeatures` is idempotent (installing twice, or from two modules, is harmless); call it before `bootstrapState()`.
 
 ## 2. `<wcs-state>` State Definition (6 methods)
 
@@ -120,11 +159,14 @@ There is **one state tree per rootNode** (document or shadowRoot). To split stat
 property[#modifier[,modifier...]][|input filter...]: path[|output filter...]
 ```
 
-- Multiple bindings are **separated by `;`**: `data-wcs="textContent: count; class.over: count|gt(10)"`
+- Multiple bindings are **separated by `;`**: `data-wcs="textContent: count; class.over: count|gt(10)"`. v3.0+: `;` and `|` split only outside quotes, so a quoted filter argument may contain them (`tags|join('; ')`, `parts|join(' | ')`) — on ≤2.x both broke the binding.
 - There is **no `@state` selector** — `@` anywhere in a path is a parse error in v2. Read another module's state through its mount prefix (`cart.total`, §2).
 - Filters on the left side (property side) apply in the **DOM→state input direction**: `<select data-wcs="value|number: selectedProductId">`
 - Right-side filters apply in the state→DOM output direction.
 - Multiple modifiers are comma-separated after a single `#`: `value#ro,init=none: path`
+- **v3.0+ rejects malformed syntax with `[wcs/binding-syntax]`** (lint reports the same code, as an error): a second `#` (`value#ro#wo` — ≤2.x silently kept only `ro`; write `value#ro,wo`), a value after `else:`, modifiers or left-side filters on `for` / `if` / `elseif` / `else` / `...`, an unterminated quote in filter arguments, and an empty filter (`x|`, `x||y`).
+- **A modifier never changes the kind of binding (v3.0+):** `radio#ro:` / `checkbox#ro:` stay radio / checkbox bindings. On ≤2.x a modifier turned them into a plain property named `radio`, so `#ro` on a radio group did nothing.
+- **Empty values (v3.0+):** display surfaces — `textContent` / `innerText` / `innerHTML`, mustache, `attr.*`, `style.*` — treat `undefined` and `null` alike: the text is emptied, the attribute or style removed. Element inputs (every other property, spread) still skip `undefined` (the element keeps its own default) and clear on `null`. On ≤2.x `textContent:` also skipped `undefined` — a reused list row then kept the previous row's text — and `attr.*` wrote the string `"undefined"` / `"null"`.
 
 ### Property types
 
@@ -291,7 +333,7 @@ Path getters are **lazy**; "does this getter run?" depends on where demand comes
 |---|---|
 | `this.$getAll(path, indexes?)` | Get all values of a wildcard path as an array (for aggregation). `indexes` is a **prefix** over the path's wildcards — missing levels expand fully, `[]` always means "every match"; **more than the `*` count throws `wcs/index-arity`** (v1.31; earlier versions silently dropped the surplus and returned a plausible wrong value). **Omitting `indexes` entirely defaults to the enclosing loop context** (v1.32) — `this.$getAll("regions.*.prefectures.*.population")` inside a `regions.*` getter narrows to the current region. If the path shares **no** wildcard level with a loop context that holds indexes, `$getAll` **throws** rather than silently reading everything — pass `[]` explicitly for "every match" there. **v2.3**: an `indexes` that is not an array (`null`, a number) throws a diagnostic naming the argument and the two valid forms, instead of a raw `TypeError` |
 | `this.$setAll(path, indexes, value, options?)` | v1.32+: write to **every** address a wildcard path matches, in place — see below |
-| `this.$resolve(path, indexes, value?)` | Read/write at specific indexes. The index count must match the path's `*` count **exactly** (v1.31: `wcs/index-arity`; loop-context-derived indexes when the argument is omitted are deliberately unchecked). **Read with two arguments** — `$resolve(path, indexes, undefined)` reads in 2.x but writes `undefined` in 3.0, and warns as of v2.6 (§16) |
+| `this.$resolve(path, indexes, value?)` | Read/write at specific indexes. The index count must match the path's `*` count **exactly** (v1.31: `wcs/index-arity`; loop-context-derived indexes when the argument is omitted are deliberately unchecked). **v3.0+: the argument count decides** — two arguments read, three write (`undefined` included); ≤2.x read when the third argument was `undefined`, and v2.6 warns on that form (§16). **Read with two arguments** on every version. On a readonly proxy (`createState("readonly", …)`) the write throws `This state is readonly.` in v3.0+, and so does `$setAll` (≤2.x let both write through a readonly proxy) |
 | `this.$postUpdate(path)` | Manually emit an update notification |
 | `this.$trackDependency(path)` / `this.$untrackDependency(fn)` | Manually register / suppress dependencies |
 | `this.$eq(path, key)` / `this.$eqPath(path, keyPath)` / `this.$eqIndex(path, level?)` | v2.6+: keyed subscription — "is `path` equal to this row's key?" without a dependency on `path` from every row. See below |
@@ -341,7 +383,7 @@ export default {
 </template>
 ```
 
-Rules (verified against 2.6.1):
+Rules (verified against 2.6.1 and 3.0.0):
 
 - **What reaches the rows** — a write to `path` of any value, objects included (`this.selected = row` with `$eq("selected", this["items.*"])`), and a write that replaces an object above it (`this.selection = { id }` under `$eqPath("selection.id", …)`): the row that was selected and the row that becomes selected. **On 2.6.0 both failed silently** — an object key left the previous row selected (two rows showed as selected), and a parent replaced wholesale re-evaluated no row. Pin ≥2.6.1.
 - **A getter as `path`**, or a path under one (`$eq("current.id", …)` with `get current()`), falls back to an ordinary tracked read from 2.6.1: the selection is correct, but a change re-evaluates every row, as without the keyed form — point `path` at the written state (`selectedId`) to keep the two-row cost. On 2.6.0 it never re-evaluated the rows.
@@ -349,6 +391,7 @@ Rules (verified against 2.6.1):
 - `$eqPath` reads the key without a dependency, so a row whose key changes **in place** is not re-evaluated by that change — use it for identities that do not change (ids), and `$eq` with a tracked key read when the key itself is live.
 - They subscribe only when evaluated inside a getter; called from a method or a handler, `$eq` / `$eqPath` just return the comparison. `$eqIndex` needs a list row: in a getter outside a row it throws `$eqIndex("…") needs a list row scope.`, and a `level` with no list index at that depth throws too. A row's subscription is dropped when the list diff removes the row.
 - Types: `defineState` and `wcs-tsc` 2.6 declare all three. The published VS Code extension (1.15.0) predates them, so its inline-script typing may flag `this.$eqPath` until its next release — the runtime is unaffected.
+- **DevTools (v3.0+):** the `@wcstack/devtools` State pane counts the subscriptions per path under **Keyed selection** — rows, keys, `$eqIndex` list watchers and the last value — and marks a getter path that fell back to a tracked read with a `tracked` badge. Use it to confirm a selection is really keyed.
 
 ### Iron rule of state updates
 
@@ -383,6 +426,10 @@ Contracts of the six v1.27 additions:
 **Argument trimming is outside-quotes only (fixed in v1.27).** Whitespace inside quotes is literal: `pad(5, ' ')` pads with a space and `join(' / ')` works. On ≤1.26 the quoted whitespace was stripped too — `pad(5, ' ')` silently became a no-op — so if you must target an older CDN pin, avoid whitespace-bearing filter arguments.
 
 **The default locale is `<html lang>` (BREAKING in v1.32; was `'en'`).** The four locale-dependent filters — `locale`, `date`, `time`, `datetime` — read `config.locale`, which now defaults to `<html lang>`, falling back to `'en'`. Always set `<html lang>`; it is the one way the CDN one-liner can set the locale at all. An explicit `bootstrapState({ locale })` still wins; an invalid BCP-47 tag is reported and ignored. **Changing `config.locale` later re-renders nothing** (it is a global setting, not state) — set the language before the page renders (markup, or a synchronous `<head>` script). Per-call overrides (`price|locale(fr-FR)`) are fixed at bind time. For pages that switch language without reloading, translations belong on a path, not in a filter (`docs/i18n-design.md`).
+
+**v3.0: filter names resolve when the bindings are planned, not when the text is parsed.** An unknown filter still throws `[wcs/filter-unknown]` with a did-you-mean — only the moment moves (it now fails when the binding is set up, not while the attribute is read). On a split-entry page (§1) the core answers only `not` (which `if` / `else` need); every other built-in comes from `@wcstack/state/features/formats`, and without it they throw the same `[wcs/filter-unknown]`. `/auto` and the full entry install them all. There is still no public registration API.
+
+**v3.0 filter arguments.** The argument count is checked at runtime too (`[wcs/filter-arity]`, the bounds lint already used): `join(a,b)` throws "accepts at most 1 argument(s)". Unquoted `true` / `false` / `null` / numbers are typed literals, quoted arguments are strings: `done|eq(true)` matches `true` (≤2.x compared with the string and never matched), `eq('true')` does not, `eq(null)` matches `null`; numbers and strings compare as before, so a form value `"1"` still matches `eq(1)`. `defaults(v)` returns the typed value (`defaults(0)` → `0`). `truthy` / `falsy` / `defaults` use JavaScript truthiness (`0n` is falsy; ≤2.x `truthy(0n)` was `true`).
 
 ## 8. Event Handling
 
@@ -490,7 +537,7 @@ export default {
 - Inside for: `...: storesFetches.*` (recommended) or `...: .`.
 - Last-wins override: `...: usersFetch; status: alternateStatus`.
 - Right-side filters are an **error**. Elements without a wcBindable declaration are an **error** — statically caught for the built-in helper tags (`wcs-fetch-header` / `wcs-fetch-body` / `wcs-infinite-scroll` / `wcs-voice`) as `wcs/spread-no-bindable` since v1.30. An empty-but-declared contract (`wcs-noise`) is legal: it expands to zero props.
-- `undefined` state paths are write-skipped for the property (the element default survives). Clear by assigning `null`.
+- `undefined` state paths are write-skipped for the property (the element default survives). Clear by assigning `null`. (Spread targets element inputs; display surfaces empty on `undefined` as of v3.0 — §3.)
 
 ## 10. `$watch` — headless change subscription (v1.27+)
 
@@ -608,8 +655,9 @@ Instead of wiring property by property, mount a **whole subtree** of the host's 
 - **Partial mounts coexist**: `state: user; state.theme: theme` — longest prefix wins, so `theme.mode` inside reads the tree's `theme.mode`. Duplicate inner paths throw at build.
 - **Own keys are private (rule R1)**: a data key the component declares itself (`state = { mode: "view" }`) belongs to the element and is never written to the tree. If it hides a key existing at the mount point, the runtime warns once (`wcs/mount-own-key-shadow`) — remove the default to read the tree, or rename to keep it private. Private-key updates **never reach `$updatedCallback`** (root or volume-relative) as of v2.1.0: their internal addresses carry a marker segment that is meaningless outside the scope and changes on every re-initialization. Inspect them in the devtools State pane's Overlays section instead.
 - **Mounting an array as the root is not supported** (`state: rows` with `for` over it inside) — mount the row (`state: .`) or the object holding the array (`state: group` + `for: children` inside). Mounts are the only way to extend the tree in v2.
-- The per-property form (`state.message: user.name`) keeps working — it is a partial mount on the same machinery. **R1 is strict for every mount form in v2**: a component that declares a default for a *mapped* key (`state = { message: "" }` next to `state.message: ...`) keeps that key **private and hides the host value** (v1 let the host value win). A one-time `wcs/mount-own-key-shadow` warning points at it — drop the default to read the tree. **3.0 reverses this for partial mounts** (the explicit mount wins over the default), and v2.6 appends `[wcs/v3-migration]` to that warning — removing the default is correct on both.
-- **`#ro` on a mount (`state#ro: user`) is not enforced on 2.x**: a component writing through it still writes the host's tree. 3.0 throws (`wcs/mount-readonly`), and v2.6 warns on the write (`wcs/v3-migration`). Write such values on the host, or drop `#ro`.
+- The per-property form (`state.message: user.name`) keeps working — it is a partial mount on the same machinery. **v3.0+: an explicit partial mount wins over the component's own key** — a component that declares a default for a *mapped* key (`state = { message: "" }` next to `state.message: ...`) reads the host value and the default is unused. **On 2.x R1 kept that key private and hid the host value** (v1 let the host value win), with a one-time `wcs/mount-own-key-shadow` warning to which v2.6 appends `[wcs/v3-migration]` — removing the default is correct on both. Unmapped own keys stay private in every version.
+- **`#ro` on a mount is honoured (v3.0+):** `state#ro: user` or `state.title#ro: doc.title` lets the component read but not write that entry — `element.state.title = …`, `this.title = …` in a method and `$setAll` / `$resolve` writes throw `[wcs/mount-readonly]`, and a two-way binding inside the component does not write back. The host still writes the path. On 2.x the modifier was accepted and ignored — the component's write reached the host's tree — and v2.6 warns on such a write (`wcs/v3-migration`). Write such values on the host, or drop `#ro`.
+- **`$errorCallback` is root-only**; declared on a volume or a mounted component it is not run and, as of v2.6.0, is named by the warning that lists the root-only keys (≤2.5 ignored it silently).
 - **One mount scope per component**: a second `<wcs-state bind-component>` on another property raises (the first scope's collected bindings would die silently).
 - **No wildcard-terminal accessor over a mounted list**: `get "tags.*"()` on a mounted component raises — put the getter on the host tree, or over the component's own private array.
 - `$getAll` / `$setAll` / `$resolve` / `$postUpdate` on `element.state` (and on `this` inside getters and methods) speak the component's own vocabulary: paths are translated onto the mount and the host row's indexes are prepended automatically.
@@ -932,15 +980,15 @@ $on: { sentinelChanged: (state) => { state.page = Math.floor(state.feed.items.le
 
 **Diagnostics.** `wcs-validate` and the VS Code extension (1.15+) check the declaration under the runtime's codes: `wcs/scan-declaration-invalid` and `wcs/scan-source-computed` (errors; `$scan` in a mounted component is a warning), `wcs/scan-path-missing` (warning — a `from` / `resetOn` typo silently never folds or resets; the runtime also warns once at declaration), and `**` in `from` / `resetOn` as `wcs/recursion-unsupported`. Scan outputs materialize as path candidates from `initial`, so `for: feed.items` validates. **Runtime-only**: `wcs/scan-feedback-loop` (it needs the graph of what `args` reads). Working demo: `examples/state-intersect-scroll/` (its feed); reference: `packages/state/docs/scan.md`; design: `docs/state-scan-design.md`.
 
-## 16. Preparing for 3.0 — `wcs/v3-migration` (v2.6)
+## 16. 2.x → 3.0 — what 3.0 rejects or reads differently (announced by v2.6 as `wcs/v3-migration`)
 
-2.6 is the last 2.x minor, and **3.0 ships without a compatibility layer**. Instead, 2.6 names every form that 3.0 rejects or reads differently while still running it the 2.x way: each is printed once per form and site as a `console.warn`, saying what 3.0 does and what to write now.
+**3.0 ships without a compatibility layer.** The syntax rows below throw in 3.0 when the binding is set up; the value and API rows mean something else there. 2.6, the last 2.x minor, names every one of them while still running it the 2.x way: each is printed once per form and site as a `console.warn`, saying what 3.0 does and what to write now. Upgrading an existing page: move to 2.6.1, clear the warnings, then move to 3.0 (the wcstack repo's `docs/migration-v3.md` walks through it).
 
 ```
 [@wcstack/state] [wcs/v3-migration] "value#ro#wo": 3.0 rejects a second "#". Write "value#ro,wo". See "Preparing for 3.0" in the @wcstack/state README.
 ```
 
-**Generate the "write now" column in new code** — every entry is correct on 2.x too, and several of the 2.x behaviours are silent bugs in their own right (marked ⚠):
+**Generate the "write now" column in new code** — every entry is correct on 2.x and 3.0 alike, and several of the 2.x behaviours are silent bugs in their own right (marked ⚠):
 
 | Form | 2.x | 3.0 | Write now |
 |---|---|---|---|
@@ -950,8 +998,10 @@ $on: { sentinelChanged: (state) => { state.page = Math.floor(state.feed.items.le
 | `radio#ro:` / `checkbox#ro:` | Binds a property named `radio` / `checkbox` — no effect ⚠ | A radio / checkbox binding that honours the modifiers | Check the binding does what you meant |
 | An unterminated quote in filter arguments | Closed silently | `[wcs/binding-syntax]` | Close the quote |
 | More filter arguments than the filter takes | The rest ignored ⚠ | `[wcs/filter-arity]` | Remove them |
+| An empty filter (`x\|`, `x\|\|y`) — not announced, only the code changes | `[wcs/filter-unknown]` | `[wcs/binding-syntax]` | Remove it |
 | Unquoted `true` / `false` / `null` in `eq` / `ne` | Compared with the *string* — `eq(true)` never matches a boolean ⚠ | Compared with the typed value | Bind the boolean directly; `eq('true')` only for real text (§7) |
 | Unquoted `true` / `false` / `null` in `defaults` | Falls back to the text (`"null"`) ⚠ | Falls back to the typed value | `defaults('null')` to keep the text |
+| An unquoted number in `defaults` (`defaults(0)`) — not announced | Falls back to the text `"0"` | Falls back to the number `0` (displays the same) | `defaults('0')` when a later filter or comparison needs the text |
 | `0n` through `truthy` / `falsy` / `defaults` | Truthy | Falsy (JavaScript truthiness) | — |
 | `undefined` into `textContent` / `innerText` / `innerHTML` | Keeps the previous text — in a reused `for` row, **the previous row's** ⚠ | Empties it | Return `""` or `null` for "no value" |
 | `undefined` / `null` into `attr.*` | Writes the text `"undefined"` / `"null"` ⚠ | Removes the attribute | Do not rely on either; bind a real value |
@@ -961,10 +1011,10 @@ $on: { sentinelChanged: (state) => { state.page = Math.floor(state.feed.items.le
 | A component writing through a `#ro` mount (`state#ro: user`) | Writes the host's tree | `[wcs/mount-readonly]` | Write on the host, or drop `#ro` (§12) |
 | An own default shadowed by a partial mount (`state.name: user.name` while the component declares `name`) | The default wins, with a warning | The explicit mount wins | Remove the default (§12) |
 
-One change arrives early instead of being announced: `$errorCallback` on a volume or a mounted component, which was ignored silently, is now named by the warning that lists the root-only keys (§2, §11). It still runs only on the root state.
+One change arrived early (2.6.0) instead of being announced: `$errorCallback` on a volume or a mounted component, which was ignored silently, is named by the warning that lists the root-only keys (§2, §11). It still runs only on the root state.
 
-- **A clean console proves nothing.** A value warning (`undefined` into a text, `0n`, a readonly write) fires only when that value actually arrives, so paths your tests did not reach stay silent. The syntax rows are checked when a binding is first parsed.
-- **Lint reports the syntax rows statically**: `npx @wcstack/lint` 2.6 emits them as `wcs/v3-migration` at **info** severity — `--strict` does not fail on them, so a minor upgrade never breaks a CI gate. Extra filter arguments stay under the existing `wcs/filter-arity` (error). The value and API rows (empty values, readonly writes, `#ro` mounts, `0n`) are runtime-only. The VS Code extension shares the check from its release after 1.15.0.
+- **A clean console proves nothing (2.6).** A value warning (`undefined` into a text, `0n`, a readonly write) fires only when that value actually arrives, so paths your tests did not reach stay silent. The syntax rows are checked when a binding is first parsed.
+- **Lint**: `npx @wcstack/lint` 2.6 reports the syntax rows statically as `wcs/v3-migration` at **info** severity — `--strict` does not fail on them, so a minor upgrade never breaks a CI gate. Extra filter arguments stay under the existing `wcs/filter-arity` (error). **The 3.0 lint reports the same syntax rows as `wcs/binding-syntax` (error)** — the code the runtime throws — and `wcs/v3-migration` is gone. The value and API rows (empty values, readonly writes, `#ro` mounts, `0n`) are runtime-only on both. The VS Code extension shares the check from its release after 1.15.0.
 
 ## Pitfall Checklist
 
@@ -1025,6 +1075,8 @@ One change arrives early instead of being announced: `$errorCallback` on a volum
 55. Writing list elements to swap rows (`$resolve("items.*", [0], b)`, `this["items.0"] = c`) is correct only from v2.5 (§4): the blocks move with their values, `$1` follows, and a value that was not in the list replaces that row in place. The completed swap is render-only, so `$watch` does not fire for rows that merely moved; and `$watch` / `$scan` on a path inside a replaced row's *nested* list does not land for that row (a recorded gap — the page and the state are still correct). On ≤2.4 the page, the reads and the writes all went out of step with the array, silently.
 56. On an SSR-hydrated page, the bindings inside server-rendered `for` rows and `if` blocks are applied once as of v2.5 (§11) — that apply is what gives a row getter its dependency edges; before it, such a binding kept the server-rendered text forever while an aggregate outside the rows updated. The inner rows of a nested `for`, mustache text inside rows, a `for` inside an `if`, and `bind-component` children inside rows are still hydration gaps: keep anything that must update out of those shapes, or render them on the client.
 57. A "selected row" flag over a long list belongs in `$eqPath` / `$eqIndex` (v2.6, §6), not in `this["items.*.id"] === this.selectedId` — the plain comparison makes every row depend on `selectedId`, so one click re-evaluates the whole list. Pin ≥2.6.1: on 2.6.0 an object key left the previously selected row selected (two rows showed as selected), and a getter path or a parent replaced wholesale never reached the rows. From 2.6.1 they work, but a getter path re-evaluates every row (tracked-read fallback), so key on the written state. Keys compare without coercion, so convert an input's string (`value|number: selectedId`). `$eqIndex` throws outside a list row.
-58. v2.6 warns (`wcs/v3-migration`, §16) on every form that 3.0 rejects or reads differently, and 2.x still runs it the old way. Generate the forms 3.0 keeps: one `#` with comma-separated modifiers (`onclick#prevent,stop:`), bare structural keywords (`else:` with nothing after it; no modifier or filter on `for` / `if` / `...` itself — right-side filters like `if: n|gt(0)` are fine), no surplus filter arguments, quoted filter text, `""` / `null` instead of `undefined` for "no text", and `$resolve(path, indexes)` with two arguments to read. Lint reports the syntax forms at info severity (not failed by `--strict`); the value forms warn only when the value actually arrives.
-59. `eq(true)` / `ne(false)` / `eq(null)` compare against the **string** on 2.x, so `done|eq(true)` is always `false` for a boolean — silently. Bind the boolean directly (`class.done: done`, `hidden: done|not`); quote the argument only when the value really is that text. Likewise `defaults(null)` falls back to the text `"null"` (§7).
-60. On 2.x, `undefined` reaching `textContent` keeps the previous text — in a reused `for` row that is **another row's** text — and `undefined` / `null` into `attr.*` writes the literal `"undefined"` / `"null"`. For text, return `""` or `null` when there is nothing to show; for an attribute, return a real string — on 2.x neither `undefined` nor `null` removes it (3.0 empties the text and removes the attribute; v2.6 warns on both).
+58. Generate the forms 3.0 keeps — each is correct on 2.x too: one `#` with comma-separated modifiers (`onclick#prevent,stop:`), bare structural keywords (`else:` with nothing after it; no modifier or filter on `for` / `if` / `...` itself — right-side filters like `if: n|gt(0)` are fine), no surplus filter arguments, no empty filter, closed quotes, `""` / `null` instead of `undefined` for "no text", and `$resolve(path, indexes)` with two arguments to read. On 3.0 the syntax forms throw at load time (`[wcs/binding-syntax]` / `[wcs/filter-arity]`; lint reports the same codes as errors). On 2.6 they still run the old way with a `wcs/v3-migration` warning (lint: info, not failed by `--strict`), and the value forms warn only when the value actually arrives (§16).
+59. `eq(true)` / `ne(false)` / `eq(null)` compare against the **string** on 2.x, so `done|eq(true)` is always `false` for a boolean — silently. v3.0+ reads an unquoted `true` / `false` / `null` / number as the typed value (a quoted argument stays text). Binding the boolean directly (`class.done: done`, `hidden: done|not`) is right on both. Likewise `defaults(null)` falls back to the text `"null"` on 2.x and to `null` on 3.0 (§7).
+60. On 2.x, `undefined` reaching `textContent` keeps the previous text — in a reused `for` row that is **another row's** text — and `undefined` / `null` into `attr.*` writes the literal `"undefined"` / `"null"`. v3.0+ empties the text and removes the attribute; element inputs still skip `undefined`. Code for both: return `""` or `null` when there is nothing to show, keep a value in state when it must stay, and bind a real string to an attribute that should be present.
+61. The split entries (v3.0+, §1) load from jsDelivr's plain file paths or a bundler, **never `esm.run`** (it re-bundles each entry with its own engine, and features install into a copy the core never sees). A missing feature throws `[wcs/feature-not-installed]` / `[wcs/filter-unknown]`; only a missing `features/diagnostics` is silent (no path warnings). When in doubt, use `/auto`.
+62. v3.0 mounts: `#ro` makes the component side read-only (`[wcs/mount-readonly]`), and an explicit partial mount beats a component default of the same name (§12). `$resolve(path, i, undefined)` writes; readonly proxies reject `$resolve` / `$setAll` writes (§6).
