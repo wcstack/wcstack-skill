@@ -127,7 +127,7 @@ v1.22+ declarative alternative: `data-wcs="value#init=element: username"` — th
 **timer** — declarative `setInterval` equivalent:
 ```html
 <wcs-timer interval="1000" data-wcs="tick: count; running: isRunning"></wcs-timer>
-<!-- one-shot: <wcs-timer interval="3000" once data-wcs="tick: showBanner"> -->
+<!-- one-shot: <wcs-timer interval="3000" once data-wcs="tick: showBanner"> — to bind `once` from state, write `.once: flag` (v3.1+); `once:` without the dot is an event binding -->
 ```
 
 **media-query** (v2.2+) — a media query as a boolean in state, for the cases where the answer has to reach *logic* rather than a stylesheet (a theme default, pausing a loop under `prefers-reduced-motion`, swapping a table for cards below a breakpoint, `(display-mode: standalone)` for a PWA); a styling-only query stays in CSS `@media`:
