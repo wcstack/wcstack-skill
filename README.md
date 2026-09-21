@@ -12,7 +12,8 @@ skills/wcstack-app/
 └── references/
     ├── state-binding.md              # Full data-wcs syntax, 46 built-in filters,
     │                                 #   command-/event-tokens, $watch, spread rules,
-    │                                 #   $recursion / ** for trees, $scan accumulation
+    │                                 #   $recursion / ** for trees, $scan accumulation,
+    │                                 #   keyed selection ($eq*), split entries (/core)
     ├── router-and-scaffold.md        # SPA routing, layouts, autoloader,
     │                                 #   index.html skeleton + SPA server fallback
     └── io-node-catalog.md            # wcBindable catalog of 52 wcs-* tags

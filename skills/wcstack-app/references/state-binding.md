@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md` / `packages/state/docs/scan.md` / `docs/state-scan-design.md`. All verified against real code at v2.5.1.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md` / `packages/state/docs/scan.md` / `docs/state-scan-design.md`. All verified against real code at v2.5.1. The parts tagged **v2.6+** (keyed selection, §6) and **v3.0+** (split entries §1, plan-time filter resolution §7) were verified against the unreleased `major/state-next` branch (README §Split entries / §Keyed selection, `docs/sri.md` §5.1) — re-check their version tags at release.
 
 ## 1. CDN Loading
 
@@ -31,6 +31,45 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 - **`crossorigin` is not needed** — `type="module"` is always fetched in CORS mode.
 - **Get digests from the GitHub Release** (a table in the body, plus a machine-readable `sri.json` asset), computed from the published tree. Never from jsDelivr's data API: the point of SRI is not trusting the CDN, so letting it self-report is circular.
 - **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. `dist/index.esm.min.js` is no longer published (v1.26); named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127 / Safari 18; not Firefox).
+
+### Loading only the features a page uses — split entries (v3.0+)
+
+`/auto` (or `@wcstack/state` + `bootstrapState()`) still ships every feature and **stays the default**: a page that uses everything is smaller as one file than as core plus features, and the one-hash SRI story above holds only for `auto.min.js`. Use the split form only when the user asks for fewer bytes and the page deliberately leaves features out:
+
+```html
+<script type="importmap">
+{
+  "imports": {
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/split/features/formats.js"
+  }
+}
+</script>
+<script type="module">
+  import { bootstrapState, installFeatures } from '@wcstack/state/core';
+  import temporal from '@wcstack/state/features/temporal';  // $watch / $scan / $streams
+  import formats from '@wcstack/state/features/formats';    // every filter except `not`
+  installFeatures([temporal, formats]);
+  bootstrapState();
+</script>
+```
+
+| Entry | Adds |
+|---|---|
+| `@wcstack/state/core` | `data-wcs`, `for` / `if`, path getters, events, `$command` / `$on`, `$eq*`, the `not` filter, `bootstrapState`, `installFeatures` |
+| `…/features/temporal` | `$watch`, `$scan`, `$streams` |
+| `…/features/scopes` | `bind-component`, `mount=` volumes, a mounted component's exported getters, DCC (`data-wc-definition`) |
+| `…/features/recursion` | `$recursion` and `**` |
+| `…/features/ssr` | `enable-ssr` (server rendering and hydration) |
+| `…/features/formats` | every built-in filter except `not` (§7) |
+| `…/features/devtools` | the DevTools hook source |
+| `…/features/diagnostics` | the development-time path warnings: a bound / `$watch` / `$scan` path that does not resolve on the state (`wcs/binding-path-missing`, with did-you-mean). Thrown errors keep their full messages without it |
+| `@wcstack/state/define` | `defineState` and the types — no runtime |
+
+- **Never load the split form through `esm.run`.** Its `+esm` endpoint re-bundles each entry and inlines the shared core chunk into every one, so each entry carries its own engine and a feature installs into a copy the core never sees — the page throws `[wcs/feature-not-installed]` although `installFeatures` ran. Use the version-pinned plain jsDelivr path (it does not read `exports`: name the file under `dist/split/`) or a bundler; then every relative import resolves to the same chunk URL and the engine is evaluated once. Integrity needs an import map with `integrity` for every entry and chunk (Chrome 127 / Safari 18; not Firefox) — `docs/sri.md` §5.1.
+- A missing feature is loud, not silent: a declaration that needs one throws `[wcs/feature-not-installed] … install it with installFeatures([...]) from "@wcstack/state/features/…"` when the state is defined (`bind-component` on a page without `features/scopes` included), and a filter whose feature is missing throws `[wcs/filter-unknown]` when the bindings are planned. **The one silent omission is `features/diagnostics`**: without it a mistyped bound path gets no console warning at all. Keep it (or `/auto`) while developing, and rely on lint either way.
+- `installFeatures` is idempotent (installing twice, or from two modules, is harmless); call it before `bootstrapState()`.
 
 ## 2. `<wcs-state>` State Definition (6 methods)
 
@@ -294,6 +333,7 @@ Path getters are **lazy**; "does this getter run?" depends on where demand comes
 | `this.$resolve(path, indexes, value?)` | Read/write at specific indexes. The index count must match the path's `*` count **exactly** (v1.31: `wcs/index-arity`; loop-context-derived indexes when the argument is omitted are deliberately unchecked) |
 | `this.$postUpdate(path)` | Manually emit an update notification |
 | `this.$trackDependency(path)` / `this.$untrackDependency(fn)` | Manually register / suppress dependencies |
+| `this.$eq(path, key)` / `this.$eqPath(path, keyPath)` / `this.$eqIndex(path, level?)` | v2.6+: keyed subscription — "is `path` equal to this row's key?" without making every row depend on `path` (see below) |
 | `this.$stateElement` | IStateElement access |
 | `this.$1`, `this.$2`, ... | Loop indexes. **v2.3**: `$N` must name an existing wildcard level — `$1`…`$128`, no leading zeros; `$129` / `$0` / `$01` now **throw** (`wcs/index-param-range`) instead of resolving as an ordinary property and reading `undefined` |
 
@@ -315,6 +355,27 @@ this.$setAll("users.*", [], rows, { spread: true });               // one entry 
 - Not a shortcut for the dependency walk: each write is enqueued individually (cost matches the hand-written loop); rendering still coalesces into one batch.
 
 **A path's depth is fixed in its string.** `nodes.*.children.*.total` is depth 2 and nothing stretches it to 3. For a tree whose depth is decided by the data, declare `$recursion` and write `**` — §14.
+
+### Keyed selection — `$eq` / `$eqPath` / `$eqIndex` (v2.6+)
+
+A row getter that answers "is this row the selected one?" is where dependency tracking scales badly: `get "items.*.selected"() { return this.$1 === this.selectedIndex; }` makes **every row** depend on `selectedIndex`, so one click re-evaluates all N row getters (10,000 rows ≈ 20 ms). The keyed forms subscribe each row under its own key instead, and a write to the path re-evaluates only the row that was selected and the row that becomes selected (≈ 0.2 ms):
+
+| API | Key | Use when |
+|---|---|---|
+| `this.$eq(path, key)` | any value | the key is computed in the getter; `path` is read without a dependency |
+| `this.$eqPath(path, keyPath)` | the value at `keyPath` (its wildcards resolve to this row) | selection by id — survives sorting and removal; the key is read without a dependency too, so replacing or reordering the list never re-evaluates the rows |
+| `this.$eqIndex(path, level = 1)` | this row's index (`level` picks the wildcard) | selection by position; unlike reading `$1`, the getter is **not** index-dependent, so removing a row re-evaluates at most two rows |
+
+```javascript
+export default {
+  items: [],
+  selectedId: null,
+  get "items.*.selected"() { return this.$eqPath("selectedId", "items.*.id"); },
+  onSelect(e, $1) { this.selectedId = this["items." + $1 + ".id"]; },
+};
+```
+
+Rules: they subscribe only when evaluated inside a getter under a list row (elsewhere they just return the comparison); a row's subscription is dropped when the list diff removes the row; keys compare as `Map` keys (`Object.is`, except `+0`/`-0` are equal). Because `$eqPath` reads the key without a dependency, a row whose key changes in place is not re-evaluated by that change — use it for identities that do not change (ids), and `$eq` with a tracked read (`this.$eq("selectedId", this["items.*.id"])`) when the key itself is live. Nothing is lost by *not* using them on short lists; reach for them when a list can hold thousands of rows and selection is frequent.
 
 ### Iron rule of state updates
 
@@ -347,6 +408,8 @@ Contracts of the six v1.27 additions:
 **Argument trimming is outside-quotes only (fixed in v1.27).** Whitespace inside quotes is literal: `pad(5, ' ')` pads with a space and `join(' / ')` works. On ≤1.26 the quoted whitespace was stripped too — `pad(5, ' ')` silently became a no-op — so if you must target an older CDN pin, avoid whitespace-bearing filter arguments.
 
 **The default locale is `<html lang>` (BREAKING in v1.32; was `'en'`).** The four locale-dependent filters — `locale`, `date`, `time`, `datetime` — read `config.locale`, which now defaults to `<html lang>`, falling back to `'en'`. Always set `<html lang>`; it is the one way the CDN one-liner can set the locale at all. An explicit `bootstrapState({ locale })` still wins; an invalid BCP-47 tag is reported and ignored. **Changing `config.locale` later re-renders nothing** (it is a global setting, not state) — set the language before the page renders (markup, or a synchronous `<head>` script). Per-call overrides (`price|locale(fr-FR)`) are fixed at bind time. For pages that switch language without reloading, translations belong on a path, not in a filter (`docs/i18n-design.md`).
+
+**v3.0: filter names resolve when the bindings are planned, not when the text is parsed.** An unknown filter still throws `[wcs/filter-unknown]` with a did-you-mean — only the moment moves (it now fails when the binding is set up, not while the attribute is read). On a split-entry page (§1) the core answers only `not` (which `if` / `else` need); every other built-in comes from `@wcstack/state/features/formats`, and without it they throw the same `[wcs/filter-unknown]`. `/auto` and the full entry install them all. There is still no public registration API.
 
 ## 8. Event Handling
 
@@ -953,3 +1016,5 @@ $on: { sentinelChanged: (state) => { state.page = Math.floor(state.feed.items.le
 54. On ≤2.3, moving the root `<wcs-state>` in the DOM silently killed every `$on` handler and command-token subscription, and a wildcard `$watch` missed rows added by replacing a nested list with a longer array (while removed rows fired with a neighbour's value). Both are fixed in v2.4 — pin ≥2.4.0 rather than working around them.
 55. Writing list elements to swap rows (`$resolve("items.*", [0], b)`, `this["items.0"] = c`) is correct only from v2.5 (§4): the blocks move with their values, `$1` follows, and a value that was not in the list replaces that row in place. The completed swap is render-only, so `$watch` does not fire for rows that merely moved; and `$watch` / `$scan` on a path inside a replaced row's *nested* list does not land for that row (a recorded gap — the page and the state are still correct). On ≤2.4 the page, the reads and the writes all went out of step with the array, silently.
 56. On an SSR-hydrated page, the bindings inside server-rendered `for` rows and `if` blocks are applied once as of v2.5 (§11) — that apply is what gives a row getter its dependency edges; before it, such a binding kept the server-rendered text forever while an aggregate outside the rows updated. The inner rows of a nested `for`, mustache text inside rows, a `for` inside an `if`, and `bind-component` children inside rows are still hydration gaps: keep anything that must update out of those shapes, or render them on the client.
+57. A "selected" row getter that compares `$1` (or the row's id) with a top-level path makes every row depend on that path, so each selection re-evaluates the whole list — correct, but O(N). On long lists use `$eqPath` (by id) or `$eqIndex` (by position), v2.6+ (§6).
+58. The split entries (v3.0+, §1) load from jsDelivr's plain file paths or a bundler, **never `esm.run`** (it re-bundles each entry with its own engine, and features install into a copy the core never sees). A missing feature throws `[wcs/feature-not-installed]` / `[wcs/filter-unknown]`; only a missing `features/diagnostics` is silent (no path warnings). When in doubt, use `/auto`.
