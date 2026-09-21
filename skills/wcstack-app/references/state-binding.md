@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md` / `packages/state/docs/scan.md` / `docs/state-scan-design.md`, and the state README's "Keyed selection" and "Preparing for 3.0" sections (v2.6). All verified against real code at v2.6.1. The parts tagged **v3.0+** (split entries §1, the grammar and empty-value fixes §3, `$resolve` and readonly writes §6, plan-time filter resolution and typed literals §7, mount `#ro` §12, §16) were verified against the unreleased `major/state-next` branch and `docs/migration-v3.md` — re-check their version tags at release.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md` / `packages/state/docs/scan.md` / `docs/state-scan-design.md`, and the state README's "Keyed selection" and "Preparing for 3.0" sections (v2.6). All verified against real code at v3.0.0; the 2.x ↔ 3.0 comparisons (the parts tagged **v3.0+**, and §16) also against `docs/migration-v3.md`.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@2.6.1/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -383,7 +383,7 @@ export default {
 </template>
 ```
 
-Rules (verified against 2.6.1):
+Rules (verified against 2.6.1 and 3.0.0):
 
 - **What reaches the rows** — a write to `path` of any value, objects included (`this.selected = row` with `$eq("selected", this["items.*"])`), and a write that replaces an object above it (`this.selection = { id }` under `$eqPath("selection.id", …)`): the row that was selected and the row that becomes selected. **On 2.6.0 both failed silently** — an object key left the previous row selected (two rows showed as selected), and a parent replaced wholesale re-evaluated no row. Pin ≥2.6.1.
 - **A getter as `path`**, or a path under one (`$eq("current.id", …)` with `get current()`), falls back to an ordinary tracked read from 2.6.1: the selection is correct, but a change re-evaluates every row, as without the keyed form — point `path` at the written state (`selectedId`) to keep the two-row cost. On 2.6.0 it never re-evaluated the rows.
