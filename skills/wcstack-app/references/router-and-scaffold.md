@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v3.1.0. The v2 breaking changes are all in `@wcstack/state` (see `state-binding.md` §2); **v2.3.0 through v3.1.0 change nothing in the router** (they are all `@wcstack/state` releases — recursive paths in v2.3, `state-binding.md` §14; `$scan` and state lifecycle fixes in v2.4, §15 / §11; the re-set re-render, SSR-block hydration, volume mount-slot release and element-write row swaps in v2.5, §11 / §2 / §4; an internal path-lookup patch in v2.5.1, with no surface change anywhere; keyed selection and the `wcs/v3-migration` warnings in v2.6, §6 / §16; a keyed-selection fix in v2.6.1, §6; the stricter grammar, the empty-value contract and the split entries in v3.0, §3 / §16 / §1; volume injection and the explicit property form `.name:` in v3.1, §2 / §3). The router surface changed in v2.1.0 for accessibility only (§5), and additively in v2.2.0 — guards gained a third argument, an object return that loads data into the new `<wcs-router>.data` output, and a string return that redirects dynamically (§4); the README also corrected *when* `data-bind` parameters are visible to an element (§2).
+Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v3.2.0. The v2 breaking changes are all in `@wcstack/state` (see `state-binding.md` §2); **v2.3.0 through v3.2.0 change nothing in the router** (they are all `@wcstack/state` releases — recursive paths in v2.3, `state-binding.md` §14; `$scan` and state lifecycle fixes in v2.4, §15 / §11; the re-set re-render, SSR-block hydration, volume mount-slot release and element-write row swaps in v2.5, §11 / §2 / §4; an internal path-lookup patch in v2.5.1, with no surface change anywhere; keyed selection and the `wcs/v3-migration` warnings in v2.6, §6 / §16; a keyed-selection fix in v2.6.1, §6; the stricter grammar, the empty-value contract and the split entries in v3.0, §3 / §16 / §1; volume injection and the explicit property form `.name:` in v3.1, §2 / §3; canonical names for ten filters, two proxy APIs and two declaration keys in v3.2, §7 / §6 / §11). The router surface changed in v2.1.0 for accessibility only (§5), and additively in v2.2.0 — guards gained a third argument, an object return that loads data into the new `<wcs-router>.data` output, and a string return that redirects dynamically (§4); the README also corrected *when* `data-bind` parameters are visible to an element (§2).
 
 ## 1. Minimal SPA scaffold
 
@@ -20,7 +20,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/router@3.1.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@3.2.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
