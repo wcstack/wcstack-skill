@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md` / `packages/state/docs/scan.md` / `docs/state-scan-design.md`, and the state README's "Keyed selection" and "Preparing for 3.0" sections (v2.6). All verified against real code at v3.0.0; the 2.x ↔ 3.0 comparisons (the parts tagged **v3.0+**, and §16) also against `docs/migration-v3.md`.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md` / `packages/state/docs/scan.md` / `docs/state-scan-design.md`, and the state README's "Keyed selection" and "Preparing for 3.0" sections (v2.6). All verified against real code at v3.1.0; the 2.x ↔ 3.0 comparisons (the parts tagged **v3.0+**, and §16) also against `docs/migration-v3.md`, and the parts tagged **v3.1+** against the 3.1.0 changelog.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@3.1.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -40,9 +40,9 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.0.0/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.1.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.1.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.1.0/dist/split/features/formats.js"
   }
 }
 </script>
@@ -140,6 +140,13 @@ There is **one state tree per rootNode** (document or shadowRoot). To split stat
 - The mount path is **static and dotted** (`settings.theme` is fine). `*`, `$`, `#`, `@` and empty segments are rejected — at runtime and as `wcs/mount-path-invalid` (error) in lint. Changing `mount` after initialization is ignored, and **warns as of v2.1.0** (it was silently ignored on 2.0.0); setting it before initialization stays silent. Mounting onto a slot the root already owns throws, as does replacing a mount point's parent wholesale from the root (`this.settings = {...}` under `mount="settings.theme"`).
 - A volume may declare **getters, `$watch`, `$listKeys`, `$updatedCallback`, `$connectedCallback` / `$disconnectedCallback`** — all relative to its own mount path. It may **not** declare `$streams` (raises); `$recursion` and `**` getters (v2.3+, §14) and `$scan` (v2.4+, §15) are refused before grafting; `$errorCallback` (v2.2+) is root-only — a binding failure is reported once, to the tree's owner, and a volume declaring it is ignored (as of v2.6 with the same warning that names the other root-only keys; silently on ≤2.5); and `$commandTokens` / `$eventTokens` / `$on` belong on the root.
 - Cross-module reads are ordinary paths: a root getter reading `this["cart.total"]` tracks the dependency like any other. The v1 "cross-state read" problem disappears with the name dimension.
+- **A volume reading a root path through its own name — injection (v3.1+):** `<wcs-state mount="cart" src="./cart.js" data-wcs="state.taxRate: settings.taxRate">` makes `this.taxRate` inside the volume's code the root's `settings.taxRate`. That covers getters (the dependency is tracked), methods, `$watch`, `$listKeys` and the lifecycle callbacks. It is the component partial-mount syntax on the volume element.
+  - The page keeps reading `settings.taxRate`; `cart.taxRate` is not in the tree.
+  - A volume data key of the same name is not grafted: the injection wins. An accessor or method of the same name fails the graft.
+  - `state.taxRate#ro: …` refuses writes from the volume with `[wcs/mount-readonly]`.
+  - `$updatedCallback` gets the injected path's update as `taxRate`.
+  - Only one key per injection (`state.<key>`), a static target (no `*`, no `$`) and no filters. Anything else is `[wcs/mount-path-invalid]`, reported before the volume loads.
+  - On ≤3.0 the same `data-wcs` failed to apply (`console.error`). Read `this["…"]` of the root path from a root getter instead.
 
 **Migrating from v1 named states** — `name=` and `path@name` were removed in v2:
 
@@ -184,6 +191,13 @@ property[#modifier[,modifier...]][|input filter...]: path[|output filter...]
 | `onclick`, `on*` | Event handlers |
 
 In addition, any DOM property name can be used (e.g. `disabled: createFetch.loading`).
+
+**A name starting with `on` is always an event binding.** `online: x` listens for a `"line"` event, and `once: flag` on `<wcs-timer>` / `<wcs-raf>` / `<wcs-resize>` / `<wcs-intersect>` listens for `"ce"`. In both cases the value never arrives, silently.
+
+- **v3.1+: put a dot in front to bind the property** — `.online: isOnline`, `.once: flag`. The dotted form is the same binding as the undotted one, except that it is never an event: `.value:` is two-way, and modifiers and input filters apply.
+- A namespace word after the dot (`.class`, `.attr`, `.style`, `.command`, `.eventToken`) or an empty name is `[wcs/binding-syntax]`.
+- Lint (VS Code extension 1.17+) reports an undotted `on*` member of a built-in tag as `wcs/on-prefixed-member` (warning).
+- On ≤3.0 a leading dot fails at apply time. Set such a property as a static attribute (`<wcs-timer once>`) or through spread instead.
 
 ### Modifiers
 
