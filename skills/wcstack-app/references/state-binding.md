@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md` / `packages/state/docs/scan.md` / `docs/state-scan-design.md`, and the state README's "Keyed selection" and "Preparing for 3.0" sections (v2.6). All verified against real code at v3.2.0; the 2.x ↔ 3.0 comparisons (the parts tagged **v3.0+**, and §16) also against `docs/migration-v3.md`, and the parts tagged **v3.1+** / **v3.2+** / **v3.3+** against the 3.1.0 / 3.2.0 / 3.3.0 changelogs. 3.3 is a quality pass over 3.0–3.2 and changes no deliberate design: most **v3.3+** tags below mark a form that used to fail silently and now either works or is named.
+Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `src/filters/builtinFilters.ts`, `src/bindTextParser/*`, plus `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/architecture-hardening/15-state-component-mechanism-consistency.md` / `packages/state/docs/scan.md` / `docs/state-scan-design.md`, and the state README's "Keyed selection" and "Preparing for 3.0" sections (v2.6). All verified against real code at v3.3.0; the 2.x ↔ 3.0 comparisons (the parts tagged **v3.0+**, and §16) also against `docs/migration-v3.md`, and the parts tagged **v3.1+** / **v3.2+** / **v3.3+** against the 3.1.0 / 3.2.0 / 3.3.0 changelogs. 3.3 is a quality pass over 3.0–3.2 and changes no deliberate design: most **v3.3+** tags below mark a form that used to fail silently and now either works or is named.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@3.2.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@3.3.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -40,9 +40,9 @@ Sources: `packages/state/README.ja.md` (normative), `packages/state/examples/*`,
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.2.0/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.2.0/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.2.0/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.3.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.3.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@3.3.0/dist/split/features/formats.js"
   }
 }
 </script>
