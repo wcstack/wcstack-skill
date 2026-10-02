@@ -24,7 +24,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
         integrity="sha384-…"></script>
 ```
 
-`dist/auto.min.js` has zero static imports, so one hash covers the whole runtime. Digests come from the GitHub Release (`sri.json` asset), not from the CDN's own data API. `esm.run` cannot be hashed at all — it redirects to a re-bundling `+esm` endpoint — and under CSP it also costs two hosts (`https://esm.run` **and** `https://cdn.jsdelivr.net`), because the redirect target is re-checked. Full directive table and the state-loading caveats: `references/state-binding.md` §1–2.
+`dist/auto.min.js` has zero static imports, so one hash covers the whole runtime. Digests come from the GitHub Release (`sri.json` asset), not from the CDN's own data API. `esm.run` cannot be hashed at all — it redirects to a re-bundling `+esm` endpoint — and under CSP it also costs two hosts (`https://esm.run` **and** `https://cdn.jsdelivr.net`), because the redirect target is re-checked. When the server issues a CSP nonce, put it on the state and router tags as well (`nonce="{RANDOM}"` next to `integrity`): the inline state and the route guards are imported through `blob:` URLs, and those imports inherit the nonce of the tag that loaded the bundle, so the policy needs no `script-src blob:`. Full directive table and the state-loading caveats: `references/state-binding.md` §1–2.
 
 ### Basic router structure
 
@@ -204,9 +204,9 @@ The third argument is a frozen `{ params, typedParams, searchParams, routeName }
 </wcs-router>
 ```
 
-`data` is the one router output that is **not** frozen (it is the guard's own object) and the router does not cache it — same route with other params loads again. Use it when the page must not show the new route with empty content (a `<wcs-view-transition>` otherwise animates a blank frame). Still no `src=` escape from `blob:` under CSP.
+`data` is the one router output that is **not** frozen (it is the guard's own object) and the router does not cache it — same route with other params loads again. Use it when the page must not show the new route with empty content (a `<wcs-view-transition>` otherwise animates a blank frame). A loader guard is still a guard under CSP: no `src=` form (below).
 
-**Guards force `script-src blob:` under a CSP.** The handler is evaluated through a `blob:` URL, and unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented. If the policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead.
+**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@3.3.0/dist/auto.min.js">` runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead.
 
 ### basename
 
@@ -465,7 +465,7 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 7. Relative paths cannot be written on top-level routes. Nested routes use relative paths.
 8. `undefined` is never written to an element (write-skip) — if a getter returns `undefined`, `<wcs-fetch>` stays silent. The auto-fetch guard compares against the last url **actually fetched**, and a state that fetches nothing (empty/`undefined` url) does not update it: leaving a detail route and coming straight back to the same id re-enters with the same url and is **skipped**. Use `command.fetch` when a genuine re-run is wanted.
 9. Autoloader load failures are not retried. (Before v1.31 a failed load additionally wedged every later lazy load on the page; fixed — waiters now settle on failure too.)
-10. Route guards require `script-src blob:` under a CSP and have no external-file form (§4).
+10. Under a CSP, route guards need the page nonce on the `<script>` that loads router (their `blob:` import inherits it) or `script-src blob:`, and they have no external-file form (§4).
 11. **`data-bind` params are invisible to the upgrade-time `connectedCallback` of a not-yet-defined element** — they are assigned after `whenDefined()` resolves, which is after the upgrade (an already-defined element does get them before `connectedCallback`). Read them in a setter / `attributeChangedCallback`, define the element before the router renders, or bind `typedParams` on `<wcs-router>` into state (§2).
 12. **A guard that forgets to `return` still rejects** (every falsy value cancels), and an **object return enters the route** — a guard that hands back the fetched record by accident also lets the user in. Do the authorization check first, then return `true` / a string / an object deliberately (§4).
 13. **`data` is `null` on any navigation whose guards return no object** — wrap content that reads it in `<template data-wcs="if: routeData">`. The router does not cache it: revisiting the same route with other params loads again, so keep anything worth reusing in your own state.
