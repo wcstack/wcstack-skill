@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md`. All verified against the actual files at v3.5.4. The v2 breaking changes are all in `@wcstack/state` (see `state-binding.md` §2); **v2.3.0 through v3.4.0 change nothing in the router** (they are all `@wcstack/state` releases — recursive paths in v2.3, `state-binding.md` §14; `$scan` and state lifecycle fixes in v2.4, §15 / §11; the re-set re-render, SSR-block hydration, volume mount-slot release and element-write row swaps in v2.5, §11 / §2 / §4; an internal path-lookup patch in v2.5.1, with no surface change anywhere; keyed selection and the `wcs/v3-migration` warnings in v2.6, §6 / §16; a keyed-selection fix in v2.6.1, §6; the stricter grammar, the empty-value contract and the split entries in v3.0, §3 / §16 / §1; volume injection and the explicit property form `.name:` in v3.1, §2 / §3; canonical names for ten filters, two proxy APIs and two declaration keys in v3.2, §7 / §6 / §11; the 3.0–3.2 quality pass in v3.3, §3 / §7 / §11; the fixes to list rows, mounted components and hydration in v3.4, §4 / §6 / §9 / §11 / §12). The router surface changed in v2.1.0 for accessibility only (§5), and additively in v2.2.0 — guards gained a third argument, an object return that loads data into the new `<wcs-router>.data` output, and a string return that redirects dynamically (§4); the README also corrected *when* `data-bind` parameters are visible to an element (§2). **v3.5 changes the router** (3.5 README and CHANGELOG): the route range (§1), parameter-only navigation (§2), layout binding (§3), the CSP guard message (§4), and `bootstrapRouter(options)` warning about an option 4.0 rejects.
+Sources: `packages/router/README.md` / `README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md` and, for what `@wcstack/state` 4.0 changes on routes, `docs/migration-v4.md` §3.9 and `packages/state-next/src/dom/mount.ts` (wcstack `research/state-engine`). All verified against the actual files at v3.5.4 <!-- 4.0: stamp — bump to v4.0.0 at release; the router surface 4.0 relies on arrived in router 3.5, and this reference was re-checked against the research/state-engine router README and source -->. The router behaviour 4.0 relies on arrived with router 3.5: a route carries its whole range out and back in (§1), a parameter-only navigation reconnects the route content once (§2), layouts bind on the first navigation (§3). What changes with `@wcstack/state` 4.0 is what state renders inside a route (§1), and `bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have (§1, §6).
 
 ## 1. Minimal SPA scaffold
 
@@ -12,12 +12,15 @@ Sources: `packages/router/README.ja.md`, `packages/autoloader/README.ja.md`, roo
 <script type="module" src="https://esm.run/@wcstack/state/auto"></script>
 ```
 
-`/auto` is a zero-config bootstrap that only performs registration. **List every I/O node package (and `@wcstack/devtools/auto`) before `@wcstack/state/auto`** — module scripts run in document order, so this guarantees the elements are defined before state binds. Property/spread bindings would survive a late definition (deferred via `whenDefined` — a spread inside a `for:` / `if:` template only as of v3.4), but a **command-token emit is never replayed**, so an emit fired while an element is still undefined is silently dropped. On ≤3.3 the recommended order itself broke one shape: an I/O node with output members inside `for:` rows, defined before the rows, made the whole `for:` draw nothing — pin ≥3.4.0 for that (`state-binding.md` §9).
+`/auto` is a zero-config bootstrap that only performs registration (it passes no options). **List every I/O node package (and `@wcstack/devtools/auto`) before `@wcstack/state/auto`** — module scripts run in document order, so this guarantees the elements are defined before state binds. Property/spread bindings survive a late definition (deferred via `whenDefined`, in `for:` / `if:` rows too), but a **command-token emit is never replayed**, so an emit fired while an element is still undefined is silently dropped.
 
-### Hardening the same scaffold for production (v1.26+)
+When you bootstrap the router yourself, `bootstrapRouter({ tagNames: { … }, enableShadowRoot, basenameFileExtensions })` **throws** on an option it does not have, a value of another type, an unknown `tagNames` key or a non-string tag name (`[@wcstack/router] bootstrapRouter: "…" is not one of its options, or not of the option's type.`); every option is checked before any is applied.
+
+### Hardening the same scaffold for production
 
 Swap each `esm.run` line for a version-pinned direct path with an `integrity` attribute; the order rule is unchanged.
 
+<!-- 4.0: CDN pin — bump @3.5.4 to @4.0.0 at release -->
 ```html
 <script type="module"
         src="https://cdn.jsdelivr.net/npm/@wcstack/router@3.5.4/dist/auto.min.js"
@@ -50,7 +53,12 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 - To display a component, **write it directly as a child of `<wcs-route>`**. On match, the children are stamped into `<wcs-outlet>`.
 - Static HTML (without `data-wcs`) may also be written directly inside a route.
-- **Wrap a route body that holds bindings in one element.** The router hands state only the body's *elements*, and @wcstack/state 3.x does not render a structural template handed over itself: a `for:` / `if:` directly under `<wcs-route>` renders only on the landing route and, entered by navigation, stays empty with `binding "for: …" failed to apply`; on ≤3.5.0 a template inside a later top-level element fails the same way when an earlier one carries its own `data-wcs` (#409, fixed in 3.5.1); `{{ }}` text directly under `<wcs-route>` is bound only on landing. One wrapper avoids all three:
+- **What state renders in a route body.** The router hands state the body's *elements* when it stamps them, declaring that it carries the route's range (the binder's `bind(subtree, { range: true })` — internal to router and state; you pass it only if you write your own inserter):
+  - `data-wcs`, `{{ }}` and comment bindings **inside elements** bind on the landing route and on every navigation;
+  - a `for:` / `if:` template **directly under `<wcs-route>`** renders with `@wcstack/state` 4.0 and router ≥3.5, and its rows or branch (with its `elseif:` / `else:`) leave and come back with the route. Inside `<wcs-head>`, or in content other code inserts without that declaration, 4.0 does not render it and reports `[wcs/template-syntax] #204` (`… was not rendered … wrap it in an element.`);
+  - **text `{{ }}` directly under `<wcs-route>`** (not inside an element) is bound only on the landing route, by state's first scan — never when the route is entered by navigation. Wrap it in an element (`<p>{{ title }}</p>`).
+
+  Wrapping the body in one element works in every combination, and is the simplest thing to generate:
 
   ```html
   <wcs-route path="/products/:productId(int)">
@@ -61,7 +69,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
     </article>
   </wcs-route>
   ```
-- **3.5: a route carries its range.** A shown body ends with `<!--@@wcs-route-end:<path>-->` (the SSR end marker); leaving takes everything from the route's placeholder to it out of the document — rows state rendered there, nodes your code inserted — and the next entry puts the same nodes back (≤3.4.0 moved only the original nodes, so a landing route's top-level rows stayed behind and coming back failed). A top-level node your code removed stays removed; the outlet has one more child node, but `wcs-outlet:empty` is unaffected.
+- **A route carries its range.** A shown body ends with `<!--@@wcs-route-end:<path>-->` (the SSR end marker); leaving takes everything from the route's placeholder to it out of the document — rows state rendered there, nodes your code inserted — and the next entry puts the same nodes back. A top-level node your code removed stays removed; a node you moved out of the route body (a dialog moved to `<body>`) is taken back into it on exit. The outlet has one more child node, but `wcs-outlet:empty` is unaffected.
 
 ### `<wcs-route>` attribute list
 
@@ -72,9 +80,9 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 | `fallback` | Displayed when no route matches |
 | `fullpath` | Full path including ancestors (read-only) |
 | `name` | For identification |
-| `guard` | Enables the guard. The value is the absolute redirect path used when the guard cancels with a falsy return (a non-empty string return redirects there instead, v2.2+ — §4) |
+| `guard` | Enables the guard. The value is the absolute redirect path used when the guard cancels with a falsy return (a non-empty string return redirects there instead — §4) |
 
-Route elements are **detached controllers** after parsing (v1.32): they are not part of the live DOM, cannot be found with `querySelector`, and cannot be bound with `data-wcs`. Match results (`params` / `typedParams` / `routeName`) are read from the **`<wcs-router>` element** — see §5. `guardHandler` can still be set from JS on a route object obtained before parsing.
+Route elements are **detached controllers** after parsing: they are not part of the live DOM, cannot be found with `querySelector`, and cannot be bound with `data-wcs`. Match results (`params` / `typedParams` / `routeName`) are read from the **`<wcs-router>` element** — see §5. `guardHandler` can still be set from JS on a route object obtained before parsing.
 
 ### Matching priority
 
@@ -103,7 +111,7 @@ A value that fails the type check **does not match that route** (no error; it fa
 
 ### How to receive parameters
 
-**(a) From JS**: read the **router element** — `document.querySelector('wcs-router').params.userId` (string) / `.typedParams.userId` (type-converted). (Reading them off the route element via `querySelector` no longer works as of v1.32 — routes are detached controllers.)
+**(a) From JS**: read the **router element** — `document.querySelector('wcs-router').params.userId` (string) / `.typedParams.userId` (type-converted). (Route elements are detached controllers — they cannot be found with `querySelector`.)
 
 **(b) `data-bind` auto-binding** — automatically injects parameters into elements inside the route:
 
@@ -114,7 +122,7 @@ A value that fails the type check **does not match that route** (no error; it fa
 | `"attr"` | Set via `setAttribute()` |
 | `""` (empty string) | Direct property (`element.userId = value`) |
 
-**Timing (corrected in the v2.2.0 README)**: for elements that are *already defined* when the route renders — built-ins, and custom elements whose `define()` ran before the router stamped the content — parameters are assigned **before** `connectedCallback` fires. For a custom element that is **not yet defined**, assignment waits for `customElements.whenDefined()`, which resolves *after* the upgrade — so the `connectedCallback` run by the upgrade does **not** see them yet (autoloader-compatible, but `this.props.userId` read there is `undefined`, with no error). Either read the params in the `props` / `states` / attribute setter (or `attributeChangedCallback`) instead, or make sure the element is defined before the route renders (load its script before `@wcstack/router/auto`). When the params are needed in state anyway, prefer (c). **A parameter-only navigation** (`/users/1` → `/users/2`) takes the route's content out and puts it back, so `connectedCallback` runs again with the new parameters — in 3.5 once, nested routes included, in document order (≤3.4.0 could reorder the nodes, and reconnected a nested route's elements twice, first with the old parameter).
+**Timing**: for elements that are *already defined* when the route renders — built-ins, and custom elements whose `define()` ran before the router stamped the content — parameters are assigned **before** `connectedCallback` fires. For a custom element that is **not yet defined**, assignment waits for `customElements.whenDefined()`, which resolves *after* the upgrade — so the `connectedCallback` run by the upgrade does **not** see them yet (autoloader-compatible, but `this.props.userId` read there is `undefined`, with no error). Either read the params in the `props` / `states` / attribute setter (or `attributeChangedCallback`) instead, or make sure the element is defined before the route renders (load its script before `@wcstack/router/auto`). When the params are needed in state anyway, prefer (c). **A parameter-only navigation** (`/users/1` → `/users/2`) takes the route's content out and puts it back in order, so its custom elements' `connectedCallback` runs again — once, with the new parameters, nested routes included.
 
 **(c) From state (via wc-bindable)** — bind `typedParams` / `routeName` on `<wcs-router>` and consume the **parsed** results; no path-string regex needed (see §5 and §7).
 
@@ -166,9 +174,9 @@ Loads a template, inserts its children into `<slot>`, and writes the result out 
 
 With `disable-shadow-root`, slot substitution applies **only to direct children of `<wcs-layout>`**. Elements with a `slot` attribute inside a `<wcs-route>` are not slotted.
 
-### Layouts and state bindings (3.5)
+### Layouts and state bindings
 
-`<wcs-layout-outlet>` hands what it places to state's binder once it is in the page, so the layout template's own bindings and the route content in its slots bind on the **first** navigation into the layout (≤3.4.0 left them unbound on navigation — a `for:` inside never rendered, even on later visits). It hands its nodes over one by one, so **the wrap rule of §1 applies to the layout template's top level and to route content slotted into a layout too** (a structural template at their top level; the self-binding-sibling case, #409, is fixed in 3.5.1). With `enable-shadow-root` the template sits in the outlet's shadow root, which the page's state does not bind (the slotted route content is bound).
+`<wcs-layout-outlet>` hands the elements it places to state's binder once they are in the page (the template loads asynchronously), with the same range declaration as a route body, so the layout template's own bindings and the route content in its slots bind on the **first** navigation into the layout. Only elements are handed over: **a `{{ }}` in text directly under the layout template (not inside an element) is not bound on a navigation** — wrap it in an element, as for a route body (§1). With `enable-shadow-root` the template sits in the outlet's shadow root, which the page's state does not bind (the slotted route content is bound).
 
 ### `<wcs-head>`
 
@@ -183,7 +191,7 @@ Manages the document `<head>` per route. Stack-based: the last one connected win
   <wcs-guard-handler>
     <script type="module">
       export default function(toPath, fromPath) {
-        return document.cookie.includes('session=');   // true | false | object | string, or a Promise of one (v2.2+ — table below)
+        return document.cookie.includes('session=');   // true | false | object | string, or a Promise of one (table below)
       }
     </script>
   </wcs-guard-handler>
@@ -193,7 +201,7 @@ Manages the document `<head>` per route. Stack-based: the last one connected win
 
 `false` cancels → navigates to the path in the `guard` attribute. `<wcs-guard-handler>` is removed from the DOM after parsing. Ignored if placed outside a `<wcs-route>`. Can also be set from JS via `route.guardHandler = fn`.
 
-**Guard return values and the third argument (v2.2+)** — the guard is the one async step before the route content swaps, so it doubles as the route's **loader** and **dynamic redirect**:
+**Guard return values and the third argument** — the guard is the one async step before the route content swaps, so it doubles as the route's **loader** and **dynamic redirect**:
 
 | Return | Effect |
 |---|---|
@@ -222,7 +230,7 @@ The third argument is a frozen `{ params, typedParams, searchParams, routeName }
 
 `data` is the one router output that is **not** frozen (it is the guard's own object) and the router does not cache it — same route with other params loads again. Use it when the page must not show the new route with empty content (a `<wcs-view-transition>` otherwise animates a blank frame). A loader guard is still a guard under CSP: no `src=` form (below).
 
-**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@3.5.4/dist/auto.min.js">` runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead. **3.5**: a CSP-blocked guard is reported as CSP on Firefox too, and the message names the nonce fix.
+**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@3.5.4/dist/auto.min.js">` <!-- 4.0: CDN pin — bump to @4.0.0 at release --> runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead. A CSP-blocked guard is reported as CSP (on Firefox too), and the message names the nonce fix.
 
 ### basename
 
@@ -232,7 +240,7 @@ The third argument is a frozen `{ params, typedParams, searchParams, routeName }
 
 Resolution order: (1) `basename` attribute → (2) derived from `<base href>` → (3) empty string. Normalization: prepend leading `/`, collapse consecutive slashes, strip trailing `/`, strip trailing `*.html` (`/app/index.html` → `/app`). Multiple routers can coexist in the same document as long as their basenames differ.
 
-**Multilingual sites: the locale goes in the basename, not a route pattern** (v1.32 canon, `examples/router-i18n`). Write `<base href="/ja/">` from a synchronous `<head>` script once the locale is known. A `/:lang` route parameter *breaks* the language switch: the router intercepts every same-origin navigation under its basename, so a link to another language would be handled client-side and per-locale modules (dictionary, `Intl` formatters) would never re-evaluate — the language silently does not change. With the locale in the basename, a link to `/en/…` falls outside the router's own path, and the browser performs a real navigation. Consequences: route patterns and in-app links stay locale-free, and **every URL on the page must be absolute** (`<base>` changes relative resolution — including `<wcs-state src>`, which resolves against the document base URL as of v1.32). Repair a locale-less URL in that same head script via `location.replace`, not a route guard (a guard *can* redirect dynamically since v2.2 by returning a string, but the head script runs before any module loads and the basename decision has to be made there anyway).
+**Multilingual sites: the locale goes in the basename, not a route pattern** (`examples/router-i18n`). Write `<base href="/ja/">` from a synchronous `<head>` script once the locale is known. A `/:lang` route parameter *breaks* the language switch: the router intercepts every same-origin navigation under its basename, so a link to another language would be handled client-side and per-locale modules (dictionary, `Intl` formatters) would never re-evaluate — the language silently does not change. With the locale in the basename, a link to `/en/…` falls outside the router's own path, and the browser performs a real navigation. Consequences: route patterns and in-app links stay locale-free, and **every URL on the page must be absolute** (`<base>` changes relative resolution — including `<wcs-state src>`, which resolves against the document base URL). Repair a locale-less URL in that same head script via `location.replace`, not a route guard (a guard *can* redirect dynamically by returning a string, but the head script runs before any module loads and the basename decision has to be made there anyway).
 
 ### Fallback route / catch-all
 
@@ -248,16 +256,16 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 <wcs-link to="/about">About</wcs-link>
 ```
 
-- Converted to an `<a>`. If `to` starts with `/`, it is a route path (basename auto-prepended; a `?query` / `#hash` suffix is kept). A value starting with `?` is a **query-only link** (current pathname + that query, v1.32). Other values are external URLs.
-- The `active` CSS class is applied on current-location match — and `aria-current="page"` alongside it (v1.32). The comparison is **pathname-only**: `to="/products"` stays active on `/products?page=2`.
-- **Attribute forwarding (v1.32; seven names as of v2.1.0)**: at anchor creation, all `aria-*` plus `title` / `rel` / `target` / `download` / `hreflang` / `lang` / `dir` are copied host → anchor (`lang` / `dir` joined in v2.1.0 — they set the announcement language and direction of the link text, so a multilingual nav wants them; on ≤2.0.0 only the first five exist). Afterwards only those fixed names keep tracking; **dynamic `aria-*` changes never reach the anchor** — including `data-wcs="attr.aria-label: ..."`. Write `aria-*` on `<wcs-link>` as static attributes.
+- Converted to an `<a>`. If `to` starts with `/`, it is a route path (basename auto-prepended; a `?query` / `#hash` suffix is kept). A value starting with `?` is a **query-only link** (current pathname + that query). Other values are external URLs.
+- The `active` CSS class is applied on current-location match — and `aria-current="page"` alongside it. The comparison is **pathname-only**: `to="/products"` stays active on `/products?page=2`.
+- **Attribute forwarding**: at anchor creation, all `aria-*` plus `title` / `rel` / `target` / `download` / `hreflang` / `lang` / `dir` are copied host → anchor (`lang` / `dir` set the announcement language and direction of the link text, so a multilingual nav wants them). Afterwards only those fixed names keep tracking; **dynamic `aria-*` changes never reach the anchor** — including `data-wcs="attr.aria-label: ..."`. Write `aria-*` on `<wcs-link>` as static attributes.
 - In browsers with the Navigation API, a plain `<a href="/about">` under the basename is **also** intercepted as an SPA navigation; fallback browsers get SPA behavior only through `<wcs-link>` — so it stays the recommendation.
 
 ### Programmatic navigation
 
 **(a) JS API**: the router element's `async navigate(path: string): Promise<void>` (Navigation API, with pushState fallback when unavailable).
 
-**(b) From state** — `<wcs-router>` exposes the whole navigation state over wc-bindable (surface extended in v1.32):
+**(b) From state** — `<wcs-router>` exposes the whole navigation state over wc-bindable:
 
 ```html
 <wcs-router data-wcs="path: path; typedParams: routeParams; searchParams: query;
@@ -271,7 +279,7 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 | `params` / `typedParams` | output | Merged params of the matched chain; `typedParams` type-converted (`:id(int)` → number). `{}` on fallback / before init |
 | `searchParams` | output | Query as `Record<string,string>`; duplicate keys last-wins, `URLSearchParams` decoding; `{}` when none |
 | `routeName` | output | `name` of the deepest matched route (fallback route's `name` on a 404); `""` when unnamed |
-| `data` (v2.2+) | output | What the current navigation's guards **returned as an object** (§4 loader) — `null` when no guard returned one, including before init; a query-only same-match keeps the previous value. The one member that is **not** frozen: it is the guard's own object, passed through; the router neither copies nor caches it. Fires `wcs-router:data-changed` |
+| `data` | output | What the current navigation's guards **returned as an object** (§4 loader) — `null` when no guard returned one, including before init; a query-only same-match keeps the previous value. The one member that is **not** frozen: it is the guard's own object, passed through; the router neither copies nor caches it. Fires `wcs-router:data-changed` |
 | `navigateUrl` | write (null-idle transient) | Assign a target to **push**-navigate; resets itself to `null` on finish; `null`/`""` writes are no-ops |
 | `replaceUrl` | write (null-idle transient) | Same contract, but **replaces** the history entry |
 | `basename` | input | Mirrors the attribute |
@@ -280,32 +288,28 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 - **Choosing the write surface**: pagination/tabs (back button should step through) → `navigateUrl = "?page=2"`; search boxes/filters (history should not record keystrokes) → `replaceUrl = "?q=" + …` with `<wcs-debounce>` in front.
 - Commands `navigate(path)` / `replace(path)` are also declared (invocable via command tokens).
 
-### Query strings in navigation targets (v1.32)
+### Query strings in navigation targets
 
 `navigate()` / `navigateUrl` / `replaceUrl` / `<wcs-link to>` accept `/path` (query **not** carried over), `/path?k=v`, `?k=v` (**query-only**: pathname keeps its value), and `?` (clears the query). Queries never participate in route matching, and a query-only navigation is a **same-match**: guards do not re-run, content is not restamped, no view transition, no announcement, focus/scroll stay. Only `searchParams` and the URL change. The hash is passed through untouched (never routed on).
 
-### Accessibility contract (v1.32; repaired in v2.1.0)
+### Accessibility contract
 
 Default: the router **delegates to the browser** — on the Navigation API path it passes the spec defaults explicitly (`scroll: "after-transition"`, `focusReset: "after-transition"`: push scrolls to top, traverse restores scroll, focus goes to `[autofocus]` or `<body>`); on the fallback path it scrolls to top after a committed push and leaves `popstate` to `history.scrollRestoration`. Opt-in policies — both off by default, never on first load, never on a guard-rejected navigation:
 
-- `<wcs-router focus="heading">` — moves focus to the first **visible** `h1`–`h6` of the **leaf** route's content (adds `tabindex="-1"` if needed; hidden headings are skipped as of v2.1.0, since focusing them is a no-op). With no visible heading, v2.1.0 reproduces the spec-default reset itself — first `[autofocus]`, else blur to `<body>` — and only the exact value `"heading"` activates the policy, an empty or unknown value falling back to the browser default. **Two authoring rules hold regardless**: write exactly `focus="heading"` or omit the attribute, and **give every route a visible heading near the top of its content** (focusing a heading scrolls it into view, but the scroll-to-top after a push wins, so a heading far down ends up focused off-screen). **On ≤2.0.0 both rules are load-bearing**: any `focus=` value made the router pass `focusReset: "manual"` while only `"heading"` acted, so a typo disabled the browser's reset with nothing in its place, and a heading-less route left focus on the clicked element — stranding a screen reader on the previous screen. Pin ≥2.1.0 when accessibility matters.
+- `<wcs-router focus="heading">` — moves focus to the first **visible** `h1`–`h6` of the **leaf** route's content (adds `tabindex="-1"` if needed; hidden headings are skipped, since focusing them is a no-op). With no visible heading, the router reproduces the spec-default reset itself — first `[autofocus]`, else blur to `<body>` — and only the exact value `"heading"` activates the policy, an empty or unknown value falling back to the browser default. **Two authoring rules**: write exactly `focus="heading"` or omit the attribute, and **give every route a visible heading near the top of its content** (focusing a heading scrolls it into view, but the scroll-to-top after a push wins, so a heading far down ends up focused off-screen).
 - `<wcs-router announce="title">` — writes the commit-time `document.title` snapshot into a router-owned live region (`role="status"`). Known limits: a bound `<title data-wcs>` may still be stale at commit; a title change outside navigation is not re-announced; and navigating between two routes that share a title may not be announced at all by some screen reader / browser pairs, because the live-region text never changes — give routes distinct titles.
 
 **Recommended default for an SPA scaffold**: `<wcs-router focus="heading" announce="title">`, plus one `<h1>` and one `<wcs-head><title>` per route. Both policies are inert without that markup, so opting in without the headings and titles buys nothing.
 
-### Route transition animations (v1.32)
+### Route transition animations
 
 Load `@wcstack/view-transition/auto` and put `<wcs-view-transition for="router"></wcs-view-transition>` on the page: route swaps run inside a View Transition, styled in CSS via `::view-transition-old/new(root)`. Guards run first (an awaiting guard does not hold the transition open); the first paint never animates. `for="router"` keeps state's drain timing untouched — see `state-binding.md` §10 for what the default (`for="router state"`) changes.
 
-### Server-side rendering the initial route (v1.32)
+### Server-side rendering the initial route
 
 `<wcs-router enable-ssr>` + `@wcstack/server`'s `renderToString(html, { url, bootstraps })` renders the request URL's initial route on the server — typed params, nested routes, and structural templates inside route content included. The client router **adopts** the server-rendered DOM instead of re-rendering (state bindings hydrated on those nodes stay live); anything that fails verification falls back silently to client-side rendering. Guarded routes are never server-rendered (guards are authorization and run client-side; the outlet ships empty); `<wcs-layout>` routes fall back on adoption; `<wcs-link>` anchors are server-rendered with `active`/`aria-current` and adopted. Packages whose classes extend `HTMLElement` cannot be imported top-level in plain Node — pass async loaders: `bootstraps: [bootstrapState, async () => (await import('@wcstack/router')).bootstrapRouter()]`.
 
-**v3.3 makes `renderToString` survivable in a long-lived server.** It gains `RenderOptions.timeoutMs` (default 30 000 ms, `0` disables) — on ≤3.2 a page that never became ready held `renderMutex` forever, so **one bad page hung every later render on the process**. The commonest trigger was a `<wcs-state mount="…">` whose state is an inline `<script type="module">` (also fixed in 3.3 — below it, give a volume `src=` or `json=`). Do not pass `Infinity` or anything over 2 147 483 647: below 3.3 Node rounded such a delay to 1 ms, so raising the limit made healthy pages fail instantly. 3.3 also stops `<wcs-ssr>` carrying another request's templates and hydration props, and makes `{{ }}` inside a `for` / `if` survive hydration instead of turning permanently empty (`state-binding.md` §11).
-
-**v3.4 names the one shape the server renders but the client will not hydrate**: a `for:` nested inside another `for:`, or inside an `if:` / `elseif:` / `else:` block, with at least one row in the server output. On ≤3.3 hydrating it threw and left **no binding on the page** following writes; 3.4 discards the server-rendered DOM, renders on the client and logs one `console.warn` naming the template (an `if:` inside `for:` rows hydrates normally). The server side of 3.4 also keeps each row's boundary comments in order when rows are added to a non-empty list during the render (a page-by-page load after an `await` in `$connectedCallback` — on ≤3.3 every later list write threw after hydration), drops the boundary comments of blocks hidden before the render finished, and writes `for:` / `if:` filters into the `<wcs-ssr>` snapshot (on ≤3.3 `if: x|not` + `else:` hydrated inverted). The other hydration fixes are client-side: `state-binding.md` §11.
-
-**v3.5.3 keeps text filters through hydration.** On ≤3.5.2 a server-rendered `{{ price|toFixed(2) }}` — page-level text, `<!--@@: -->`, filter chains, and the text of server-rendered `for:` rows and `if:` branches — hydrated unfiltered (`3.14159` where the server showed `3.14`) and later writes stayed unfiltered, because the server's text markers carried only the path. 3.5.3's server writes the whole expression into them; any 3.x client reads that, so **upgrade `@wcstack/state` on the server** (the `@wcstack/server` dependency). A Light DOM `bind-component` child's aliased `{{ p|… }}` no longer hydrates empty. An expression containing `--` still falls back to the path, unfiltered — from 3.5.4 the path the child wrote (3.5.3 wrote the host's path there, and such a child's text hydrated empty).
+**Server and client move together.** Deploy `@wcstack/server` and the client at the same major.minor: a 4.0 client discards the snapshot of a 3.x server (`<wcs-ssr version="3.x.y"> does not match 4.0.0 …`) and renders the page on the client from its own state — it works, but the server's work, `$connectedCallback` and its fetches included, is redone; a 4.0 server with a 3.x client is not supported. Purge HTML cached from the old version when you switch. `renderToString(html, { url, bootstraps, timeoutMs })` — `timeoutMs` defaults to 30 000 ms (`0` disables; keep it finite and ≤ 2 147 483 647), so one page that never becomes ready cannot hang the process. Keep the comments in the output (text bindings and the row / branch markers are comments — a minifier's `removeComments` breaks hydration), keep SSR state JSON (`Date` / `Map` / class instances do not survive the snapshot), and expect `outerHTML:` / `outerText:` to be applied on the client only. Hydration adopts the server's rows and branches — nested `for:`s and a `for:` inside an `if:` included — and applies every binding; `$connectedCallback` does not run again on the client. Details: `state-binding.md` §11.
 
 ## 6. autoloader
 
@@ -349,10 +353,10 @@ export default class UiButton extends HTMLElement {
 ```
 
 - The `is` attribute (customized built-ins) is also auto-detected (the autoloader defines with `{ extends }`).
-- Components that fail to load are not retried (failure detection is the responsibility of `@wcstack/defined`). Dynamically added elements are also detected via MutationObserver. **v1.31 fixed the wedge around this**: a failed lazy load used to leave every later waiter parked on a `whenDefined()` that could never settle — one broken component silently disabled lazy loading for the rest of the page's life. Waiters now await the load promise itself, which settles on success *or* failure.
-- **Scoped custom element registries (Chrome/Edge 146+, Safari 26+) are supported as of v1.31**: lazy loading defines into the scanned root's own registry, the in-flight ledger is per registry, and a root whose registry is explicitly `null` is reported instead of silently skipped. On platforms without the feature, behavior is byte-for-byte unchanged. (The same registry resolution applies across wcstack: `<wcs-defined>` watches the registry its subtree resolves against — tags with no governing registry report `missing` immediately rather than pending forever — and every package's `registerComponents(registry?)` can define into a scoped registry; see `docs/scoped-custom-element-registries.md`.)
+- Components that fail to load are not retried (failure detection is the responsibility of `@wcstack/defined`). Dynamically added elements are also detected via MutationObserver. Waiters await the load promise itself, which settles on success *or* failure, so one broken component does not stall the other lazy loads.
+- **Scoped custom element registries (Chrome/Edge 146+, Safari 26+) are supported**: lazy loading defines into the scanned root's own registry, the in-flight ledger is per registry, and a root whose registry is explicitly `null` is reported instead of silently skipped. On platforms without the feature, behavior is byte-for-byte unchanged. (The same registry resolution applies across wcstack: `<wcs-defined>` watches the registry its subtree resolves against — tags with no governing registry report `missing` immediately rather than pending forever — and every package's `registerComponents(registry?)` can define into a scoped registry; see `docs/scoped-custom-element-registries.md`.)
 - **Under a CSP the inline import map needs a `nonce`** (`<script type="importmap" nonce="{RANDOM}">`) — being inline, it cannot take `integrity` — and `script-src` must allow whatever host `@components/` resolves to. Autoloaded components are page-supplied code, so they are outside the wcstack bundle's `integrity` coverage; hash them yourself if that matters.
-- **`bootstrapAutoloader(options)`** (only when you bootstrap it yourself — `/auto` passes nothing): do not pass `scanImportmap`. It never had an effect (the import map is read either way), 3.5 warns about it, and 4.0 throws on it, as on any option the package does not have.
+- **`bootstrapAutoloader(options)`** (only when you bootstrap it yourself — `/auto` passes nothing) throws on an option it does not have or a value of another type (`[@wcstack/autoloader] bootstrapAutoloader: "…" is not one of its options, or not of the option's type.`). There is no `scanImportmap` (the import map is always read; 3.x accepted the option and ignored it).
 
 ## 7. Full index.html structure of the real demo (actual examples/router-spa skeleton)
 
@@ -382,7 +386,7 @@ export default class UiButton extends HTMLElement {
 <wcs-state>
   <script type="module">
     export default {
-      // Router observation surface (v1.32): parsed results, no path regex anywhere
+      // Router observation surface: parsed results, no path regex anywhere
       routeParams: {},   // <- typedParams: :productId(int) arrives as a number
       routeName: "",     // <- name attribute of the deepest matched route
       navigateUrl: null,
@@ -472,22 +476,24 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 
 - Write the tag directly inside the route and receive parameters via `data-bind` (§2).
 - **Defining is outside the router's responsibility** — the autoloader (§6) or a manual `customElements.define()` is required separately.
-- Alternative pattern (proven in router-spa): create no custom elements; put only `<wcs-head>` + static content in the routes, and switch the data-bound page DOM via `routeName`-derived getters in `<template data-wcs="if: ...">` directly under body. (Before v1.32 this was forced by §9-3; since the binder protocol it is a choice — bindings inside routes now work — but it remains the pattern the official demo ships.)
-- **Pick the shape per page, not per project (v2.2.0 README, "Where route content lives").** The route body is the default: stamped on entry, removed on exit, bindings bound on insertion, and everything the router offers — `<wcs-head>`, `focus="heading"` / `announce=`, the per-route view transition — is keyed to it. Switch to the body-level `<template data-wcs="if: …">` form **when the DOM must stay in the document across the navigation**: leaving a route removes its body and entering puts the same nodes back (the 3.5 README corrects "rebuilt"), so what the nodes hold survives (a half-filled form) but what needs them connected does not: a playing `<video>`, a list's scroll position (Chromium, WebKit), a component that tears down in `disconnectedCallback`. What the exception costs: `focus="heading"` finds no heading in the empty route body and falls back to the browser-default reset (`announce=` still reads `document.title`), and a view transition wraps the state branch update rather than the route swap. router-spa shows both — About is the default shape, the product pages are the exception.
+- Alternative pattern (proven in router-spa): create no custom elements; put only `<wcs-head>` + static content in the routes, and switch the data-bound page DOM via `routeName`-derived getters in `<template data-wcs="if: ...">` directly under body. (Bindings inside routes work, so this is a choice, not a requirement — but it is the pattern the official demo ships.)
+- **Pick the shape per page, not per project (router README, "Where route content lives").** The route body is the default: stamped on entry, removed on exit, bindings bound on insertion, and everything the router offers — `<wcs-head>`, `focus="heading"` / `announce=`, the per-route view transition — is keyed to it. Switch to the body-level `<template data-wcs="if: …">` form **when the DOM must stay in the document across the navigation**: leaving a route removes its body and entering puts the same nodes back (not rebuilt), so what the nodes hold survives (a half-filled form) but what needs them connected does not: a playing `<video>`, a list's scroll position (Chromium, WebKit), a component that tears down in `disconnectedCallback`. What the exception costs: `focus="heading"` finds no heading in the empty route body and falls back to the browser-default reset (`announce=` still reads `document.title`), and a view transition wraps the state branch update rather than the route swap. router-spa shows both — About is the default shape, the product pages are the exception.
 
 ## 9. Pitfall checklist
 
 1. **Deep links break without `<base href="/">`** (the basename is mis-derived from `document.baseURI`).
 2. **The server needs a SPA fallback** — without it, reloads and direct links 404.
-3. **Bindings in router-stamped content work as of v1.32** (binder protocol: the router hands inserted subtrees — route content *and* `<wcs-head>` clones — to state, so per-route `<title data-wcs>` binds too). On ≤1.31 they were silently never collected. Two residuals: on a page **without** state the router warns about bindings that cannot work, and the body-level `<template data-wcs="if:">` architecture remains a perfectly good pattern (router-spa still uses it) — just no longer a requirement.
+3. **Bindings in router-stamped content work** (binder protocol: the router hands inserted subtrees — route content *and* `<wcs-head>` clones — to state, so per-route `<title data-wcs>` binds too). On a page **without** state the router warns about bindings that cannot work; the body-level `<template data-wcs="if:">` architecture remains a perfectly good pattern (router-spa still uses it).
 4. **Script order — I/O node packages must come before `@wcstack/state`.** State last closes the window in which a `$command.x.emit()` reaches zero subscribers (command tokens are not replayed). Where the order is out of your hands, gate the emitting control on `<wcs-defined timeout>`'s `pending` output rather than awaiting `customElements.whenDefined()` (which never rejects).
 5. In Light DOM layouts, elements with a `slot` attribute are only effective as direct children of `<wcs-layout>`.
 6. A type mismatch is not an error but "no match" — `/products/abc` passes through `:productId(int)` and falls to the fallback.
 7. Relative paths cannot be written on top-level routes. Nested routes use relative paths.
 8. `undefined` is never written to an element (write-skip) — if a getter returns `undefined`, `<wcs-fetch>` stays silent. The auto-fetch guard compares against the last url **actually fetched**, and a state that fetches nothing (empty/`undefined` url) does not update it: leaving a detail route and coming straight back to the same id re-enters with the same url and is **skipped**. Use `command.fetch` when a genuine re-run is wanted.
-9. Autoloader load failures are not retried. (Before v1.31 a failed load additionally wedged every later lazy load on the page; fixed — waiters now settle on failure too.)
+9. Autoloader load failures are not retried (waiters settle on failure too, so other lazy loads continue).
 10. Under a CSP, route guards need the page nonce on the `<script>` that loads router (their `blob:` import inherits it) or `script-src blob:`, and they have no external-file form (§4).
 11. **`data-bind` params are invisible to the upgrade-time `connectedCallback` of a not-yet-defined element** — they are assigned after `whenDefined()` resolves, which is after the upgrade (an already-defined element does get them before `connectedCallback`). Read them in a setter / `attributeChangedCallback`, define the element before the router renders, or bind `typedParams` on `<wcs-router>` into state (§2).
 12. **A guard that forgets to `return` still rejects** (every falsy value cancels), and an **object return enters the route** — a guard that hands back the fetched record by accident also lets the user in. Do the authorization check first, then return `true` / a string / an object deliberately (§4).
 13. **`data` is `null` on any navigation whose guards return no object** — wrap content that reads it in `<template data-wcs="if: routeData">`. The router does not cache it: revisiting the same route with other params loads again, so keep anything worth reusing in your own state.
-14. **Wrap a route body — and a layout template's top level — that holds bindings in one element** (§1, §3): with 3.x state a top-level `for:` / `if:` or `{{ }}` text renders on the landing route only, and fails on navigation.
+14. **Text `{{ }}` directly under `<wcs-route>` or a layout template binds on the landing route only** — wrap it in an element (§1, §3). A `for:` / `if:` directly under `<wcs-route>` renders with `@wcstack/state` 4.0, but not at the top of a `<wcs-head>` (#204). Wrapping the whole body in one element works everywhere.
+15. **`bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have** (`scanImportmap` included); `/auto` passes none (§1, §6).
+16. **Delegated `on*:` handlers belong to the root they were bound in** (`state-binding.md` §8): a node your code moves under another root — out of a component's shadow root to `document.body` (a dialog) — keeps its bindings but not its delegated handlers; write `on*#direct:` on it. Moving within the document (a route body → `<body>`) keeps them.
