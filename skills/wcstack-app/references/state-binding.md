@@ -237,7 +237,7 @@ property[#modifier[,modifier...]][|input filter...]: path[|output filter...]
 | `textContent` / `text` | Text (`text` is an alias) |
 | `html` | innerHTML |
 | `class.NAME` | CSS class on/off. **The value must be a `boolean`** — a truthy string or number throws `[wcs/binding-type-expectation]` #401 on every apply. Write `class.on: count\|gt(0)`, or `class.on: label\|truthy` when you really mean "coerce". `undefined` / `null` remove the class |
-| `style.PROP` | CSS style property |
+| `style.PROP` | CSS style property — the DOM name (`style.backgroundColor`) or the CSS name (`style.background-color`, a custom property `style.--gap`); `undefined` / `null` remove it |
 | `attr.NAME` | Attribute setting (SVG namespace supported) |
 | `radio` | Radio group → single value (two-way) |
 | `checkbox` | Checkbox group → array (two-way) |
@@ -845,6 +845,8 @@ class YenInput extends HTMLElement {
 }
 ```
 
+**Attribute mirroring.** An `inputs` entry with `attribute` (`{ name: "active", attribute: "active" }`) gets the value written to that attribute too, after the property: a string or number as `String(value)`, an object as JSON, `null` / `undefined` remove it, and **a boolean as an HTML boolean attribute — `true` sets it empty, `false` removes it**. Read such a flag with `hasAttribute`, never `getAttribute(x) === "true"`. An input that is on unless an attribute says otherwise (`limiter="off"`) cannot be expressed that way: leave `attribute` out and have the setter reflect it, as `<wcs-audio>` does. Leave it out too when the property is the only truth and nothing styles or observes the attribute.
+
 Keep `element.value` and the extracted event value the same logical state (initial sync reads the property, later updates read the event). Do not expect the default to change: it is normative for every wc-bindable adapter, and DCC's `$bindables` reading `e.target[name]` is a producer-side `getter` choice, not a different default. A custom element that dispatches a delegated event type (`click`, `input`, …) with `bubbles: false` is heard on the element itself.
 
 ## 13. Testing the page headlessly
@@ -1065,6 +1067,7 @@ Working demo: `examples/state-intersect-scroll/` (its feed).
 | A volume injection (`<wcs-state mount="cart" data-wcs="state.taxRate: settings.taxRate">`) | volume not grafted | A root getter reading both paths |
 | `$listKeys` / tokens / `$on` / `$errorCallback` in a mounted component (3.x ignored them with a warning) | they run, on the component's own lists and bindings | Keep them if that is what you meant; move them to the root otherwise |
 | CSS / test selectors `[data-wcs…]` on row or branch elements | no longer match | A class or a `data-*` attribute |
+| A boolean mirrored to a custom element's attribute read as a string (`[active="false"]`, `getAttribute("active") === "true"`) | the attribute is present and empty for `true`, absent for `false` (3.x wrote `"true"` / `"false"`) | `:not([active])` / `hasAttribute("active")` |
 | `$watch("items.0.v")` relied on to fire on any row write | fires only when that value changes | — |
 | `$watch("items.*.x")` with `$listKeys` added only so the watch fires headless | not needed (row watches are headless); keep `$listKeys` for refetched rows | — |
 | A `/core` page using `$listKeys` | `[wcs/feature-not-installed]` | `installFeatures([listKeys])` from `@wcstack/state/features/list-keys` |
