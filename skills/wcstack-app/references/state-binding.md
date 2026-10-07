@@ -845,7 +845,7 @@ class YenInput extends HTMLElement {
 }
 ```
 
-**Attribute mirroring.** An `inputs` entry with `attribute` (`{ name: "active", attribute: "active" }`) gets the value written to that attribute too, after the property: a string or number as `String(value)`, an object as JSON, `null` / `undefined` remove it, and **a boolean as an HTML boolean attribute — `true` sets it empty, `false` removes it**. Read such a flag with `hasAttribute`, never `getAttribute(x) === "true"`. An input that is on unless an attribute says otherwise (`limiter="off"`) cannot be expressed that way: leave `attribute` out and have the setter reflect it, as `<wcs-audio>` does. Leave it out too when the property is the only truth and nothing styles or observes the attribute.
+**Attributes are yours to reflect.** State writes an input's property only. An `inputs` entry's `attribute` (`{ name: "active", attribute: "active" }`) just names the markup attribute for tooling — state never writes it. If CSS, `attributeChangedCallback` or DevTools should see the value on the attribute, reflect it in the setter with the encoding your element reads: `set active(v) { this.toggleAttribute("active", Boolean(v)); }` for a flag read with `hasAttribute`, `this.setAttribute("limiter", v ? "on" : "off")` for one that is on unless `"off"`. An element that only listens to `attributeChangedCallback` and has no setter will not see state's writes.
 
 Keep `element.value` and the extracted event value the same logical state (initial sync reads the property, later updates read the event). Do not expect the default to change: it is normative for every wc-bindable adapter, and DCC's `$bindables` reading `e.target[name]` is a producer-side `getter` choice, not a different default. A custom element that dispatches a delegated event type (`click`, `input`, …) with `bubbles: false` is heard on the element itself.
 
@@ -1067,7 +1067,7 @@ Working demo: `examples/state-intersect-scroll/` (its feed).
 | A volume injection (`<wcs-state mount="cart" data-wcs="state.taxRate: settings.taxRate">`) | volume not grafted | A root getter reading both paths |
 | `$listKeys` / tokens / `$on` / `$errorCallback` in a mounted component (3.x ignored them with a warning) | they run, on the component's own lists and bindings | Keep them if that is what you meant; move them to the root otherwise |
 | CSS / test selectors `[data-wcs…]` on row or branch elements | no longer match | A class or a `data-*` attribute |
-| A boolean mirrored to a custom element's attribute read as a string (`[active="false"]`, `getAttribute("active") === "true"`) | the attribute is present and empty for `true`, absent for `false` (3.x wrote `"true"` / `"false"`) | `:not([active])` / `hasAttribute("active")` |
+| A custom element that relied on state writing its input attributes (no setter, or reads inputs only in `attributeChangedCallback`; CSS on `[active="false"]`) | state writes the property only — 3.x also wrote the attribute (`String(value)`) | Reflect in the setter, with the element's own encoding |
 | `$watch("items.0.v")` relied on to fire on any row write | fires only when that value changes | — |
 | `$watch("items.*.x")` with `$listKeys` added only so the watch fires headless | not needed (row watches are headless); keep `$listKeys` for refetched rows | — |
 | A `/core` page using `$listKeys` | `[wcs/feature-not-installed]` | `installFeatures([listKeys])` from `@wcstack/state/features/list-keys` |
