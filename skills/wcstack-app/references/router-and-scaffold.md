@@ -282,7 +282,7 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 | `data` | output | What the current navigation's guards **returned as an object** (§4 loader) — `null` when no guard returned one, including before init; a query-only same-match keeps the previous value. The one member that is **not** frozen: it is the guard's own object, passed through; the router neither copies nor caches it. Fires `wcs-router:data-changed` |
 | `navigateUrl` | write (null-idle transient) | Assign a target to **push**-navigate; resets itself to `null` on finish; `null`/`""` writes are no-ops |
 | `replaceUrl` | write (null-idle transient) | Same contract, but **replaces** the history entry |
-| `basename` | input | Mirrors the attribute |
+| `basename` | input | Writes the `basename` attribute, which the router reads **once, at initialization** — set it in markup (a later write does not move the routing base). Reads back the basename in effect |
 
 - Outputs are **read** when the binding attaches, then streamed via change events — a binding attaching after the first route resolution misses nothing. On a committed navigation all values commit first, then events fire `data` → `params` → `routeName` → `search` → `path`, each only when changed (`data` by identity); a guard-rejected navigation updates and fires nothing. The exposed objects are **frozen snapshots** — copy, don't mutate (`data` is the exception: it is owned by the guard that returned it).
 - **Choosing the write surface**: pagination/tabs (back button should step through) → `navigateUrl = "?page=2"`; search boxes/filters (history should not record keystrokes) → `replaceUrl = "?q=" + …` with `<wcs-debounce>` in front.
