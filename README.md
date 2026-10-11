@@ -8,14 +8,15 @@ With this skill installed, asking your AI assistant to "build an app with wcstac
 
 ```
 skills/wcstack-app/
-├── SKILL.md                          # Workflow, cheat sheet, silent-failure matrix
+├── SKILL.md                          # Workflow, cheat sheet, failure-mode matrix
 └── references/
-    ├── state-binding.md              # Full data-wcs syntax, 46 built-in filters,
-    │                                 #   command-/event-tokens, $watch, spread rules,
+    ├── state-binding.md              # Full data-wcs syntax, comment bindings, 47 built-in
+    │                                 #   filters, delegated events + #direct, command-/
+    │                                 #   event-tokens, $behavior, $watch, spread rules,
     │                                 #   $recursion / ** for trees, accumulation over
     │                                 #   time ($watch / $on), keyed selection ($eq*),
-    │                                 #   split entries (/core), what 3.0 rejects or
-    │                                 #   reads differently, what 3.5 warns about for 4.0
+    │                                 #   split entries (/core, split auto, $features),
+    │                                 #   and what to rewrite in 3.x code
     ├── router-and-scaffold.md        # SPA routing, layouts, autoloader,
     │                                 #   index.html skeleton + SPA server fallback
     └── io-node-catalog.md            # wcBindable catalog of 52 wcs-* tags
@@ -42,7 +43,9 @@ Copy `skills/wcstack-app/` into:
 
 ## Versioning
 
-The plugin version tracks the wcstack release the content was last verified against (currently **3.5.4**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
+The plugin version tracks the wcstack release the content was last verified against (currently **4.0.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
+
+Pages that must stay on wcstack 3.x pin the major in their CDN URLs (`https://esm.run/@wcstack/state@3/auto`) and use a skill release verified against 3.5.4 (the `v3.5.4` tag of this repository).
 
 ## Ground truth & contributions
 
