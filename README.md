@@ -43,9 +43,7 @@ Copy `skills/wcstack-app/` into:
 
 ## Versioning
 
-The plugin version tracks the wcstack release the content was last verified against (currently **3.5.4**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
-
-<!-- 4.0: stamp — the content of this branch is written for wcstack 4.0. Once 4.0.0 is on npm as `latest`, bump "currently" above to 4.0.0, together with `.claude-plugin/plugin.json` "version" (JSON has no comments, so the TODO for that file lives here), SKILL.md `metadata.wcstack-version` and its "Content verified against" line, the references' "verified" lines, and the `@3.5.4` CDN pins (grep `<!-- 4.0:` under skills/). While only a 4.0.0-rc is published (npm `next`), keep this skill unreleased: unpinned `esm.run` URLs still load 3.5.x. -->
+The plugin version tracks the wcstack release the content was last verified against (currently **4.0.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
 
 Pages that must stay on wcstack 3.x pin the major in their CDN URLs (`https://esm.run/@wcstack/state@3/auto`) and use a skill release verified against 3.5.4 (the `v3.5.4` tag of this repository).
 
