@@ -1,6 +1,6 @@
 # wcstack I/O Node Catalog + signals Quick Reference
 
-Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, `docs/signals-definition-timing.md`, `docs/architecture-hardening/12-wc-bindable-observable-inventory.md`, `docs/audio-tag-design.md`, `docs/midi-tag-design.md`, `docs/timing-and-firing-contract.md`, and `examples/signals-live-search`. Tag surface verified at v4.0.1: **52 tags**, attribute spellings, properties, commands and the timing notes below source-verified. **4.0 changes no I/O node tag, property or command.** Two things an author sees: every package's `bootstrapXxx(config)` **throws** on an option it does not have, a value of another type, an unknown `tagNames` key or a non-string tag name (`[@wcstack/fetch] bootstrapFetch: "tagName" is not one of its options, or not of the option's type.` — `/auto` passes none, so a CDN page is unaffected), and `@wcstack/state` 4.0 delegates `on*:` handlers of bubbling events to the root (`state-binding.md` §8) — I/O-node wiring through property / `command.` / `eventToken.` / spread bindings is unchanged.
+Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, `docs/signals-definition-timing.md`, `docs/architecture-hardening/12-wc-bindable-observable-inventory.md`, `docs/audio-tag-design.md`, `docs/midi-tag-design.md`, `docs/timing-and-firing-contract.md`, and `examples/signals-live-search`. Tag surface verified at v4.0.2: **52 tags**, attribute spellings, properties, commands and the timing notes below source-verified. **4.0 changes no I/O node tag, property or command.** Two things an author sees: every package's `bootstrapXxx(config)` **throws** on an option it does not have, a value of another type, an unknown `tagNames` key or a non-string tag name (`[@wcstack/fetch] bootstrapFetch: "tagName" is not one of its options, or not of the option's type.` — `/auto` passes none, so a CDN page is unaffected), and `@wcstack/state` 4.0 delegates `on*:` handlers of bubbling events to the root (`state-binding.md` §8) — I/O-node wiring through property / `command.` / `eventToken.` / spread bindings is unchanged.
 
 History, for reading older pages: `mountNode` and the normative headless Cores arrived in 1.23, observation semantics (§0) in 1.24, `@wcstack/audio` / `@wcstack/midi` in 1.25, scoped-registry support in 1.31, `<wcs-view-transition>` in 1.32, `<wcs-media-query>` in 2.2; no tag, property or command name has changed since it was added. Two wiring shapes needed a minimum `@wcstack/state` on 3.x — the dotted property form (`.once:`) and `class.` / `attr.` / `style.` on a wc-bindable tag from 3.3, I/O nodes inside `for:` rows from 3.4 — and all of them work in 4.0.
 
@@ -111,14 +111,31 @@ The audio package does not follow the `manual` / `trigger` idioms above — it h
 <wcs-fetch data-wcs="url: usersUrl; value: users; loading: listLoading; error: listError"></wcs-fetch>
 <ul><template data-wcs="for: users"><li data-wcs="textContent: users.*.name"></li></template></ul>
 ```
+On an HTTP error `value` goes back to `null` — bind `error` too, and put a getter in front of a fetched list (`catalog: null` + `get products() { return this.catalog ?? []; }`) so `for:`, row getters and handlers never see `null`. The lint cannot read the response, so a list that starts `null` has no row shape: declare it with JSDoc (`@wcstack/lint` 4.0.2+) or every row field is `wcs/binding-path-missing`:
+```js
+/** @typedef {{ id: number, name: string, price: number }} Product */
+export default {
+  /** @type {Product[] | null} */
+  catalog: null,   // value: catalog — rows of `for: products` now have .id / .name / .price
+```
+Retry with `trigger:` (write `true`; the element resets it to `false` when done) — seed it `false` (`wcs/trigger-seeded-truthy`). A `body:` bound to an object is **one-shot**: `body` resets to `null` after each `fetch()`, and a write below the bound path (`newUser.name`) does not re-apply it, so a second submit sends no body — assign a fresh body object in the submit handler.
 
-**storage** — two-way persistence of primitive values. The bound state slot is **intentionally initialized to `undefined`** (`""`/`null` would overwrite the stored value on the initial write-back = load-before-bind idiom):
+**storage** — two-way persistence. Bind `value` with **`#init=element`** so the persisted value wins the initial sync (without it the state's seed is written to the element first and saved over the stored value on every load — `wcs/storage-seed-clobber`), and seed the slot with **`null`**, which is what an empty key loads as (`#init=element` pulls it in, so a `""` / `[]` seed is gone on a first visit — `wcs/storage-init-seed`):
 ```html
-<wcs-storage key="username" data-wcs="value: username"></wcs-storage>
+<!-- state: username: null -->
+<wcs-storage key="username" data-wcs="value#init=element: username"></wcs-storage>
 <input data-wcs="value: username">
 ```
-Declarative alternative: `data-wcs="value#init=element: username"` — the element's persisted value wins the initial sync regardless of the slot's seed, then normal two-way write-back resumes.
+(Seeding `undefined` with a plain `value:` is the storage README's fallback only for a page that turns `$behavior.enableDirectionalInitialSync` off; with it on, the element's load event can fire before the binding exists.)
 **Several inputs, one key (the storage README canonical form)**: give the state an **accessor pair** and bind it with `value#init=element` — `get formSnapshot() { return { name: this["form.name"], email: this["form.email"] }; }` / `set formSnapshot(v) { if (v) this.form = { ...this.form, ...v }; }` + `<wcs-storage key="signup-form" data-wcs="value#init=element: formSnapshot">`. On load the stored object goes through the setter once (`null` for an empty key, which then seeds it), typing a field dirties the getter and saves the new object, and the save's own `value` event is recognized as the write confirmation. **Read the fields as `this["form.name"]`, never `this.form.name`** — the latter tracks `form` only, so editing never re-evaluates the getter (`state-binding.md` §6). The on-demand variant — `manual` + a getter of `$dependOn` calls bound to `trigger:` — remains for saving at a moment of your choosing.
+**A list (a cart) is the same rule, one level down.** A binding is re-applied only when **its own path** is assigned, so `value: cart` misses every `this[`cart.${i}.quantity`] += 1` — the page shows 2, storage holds 1, nothing is logged (`wcs/input-nested-write`). Bind an accessor pair that reads each line by path through a row getter and `$getAll`; keep only what the user chose (ids, quantities) and look the rest up from the catalog with row getters, so a stored line never carries a stale price:
+```js
+get "cart.*.saved"() { return { id: this["cart.*.id"], quantity: this["cart.*.quantity"] }; },
+get savedCart() { return this.$getAll("cart.*.saved", []); },
+set savedCart(lines) { if (Array.isArray(lines)) this.cart = lines; },   // null on a first visit is ignored
+// <wcs-storage key="cart" data-wcs="value#init=element: savedCart"></wcs-storage>
+```
+Forgetting `#init=element` on the accessor pair empties the stored cart on reload (the getter's `[]` is written first), and the lint cannot see it — test add → reload. Changes saved by another tab arrive through the setter (the `storage` event), so two tabs share the cart with no extra code. A stored cart is restored **before** a fetched catalog arrives: write the lookup getters with `?.` / `??`.
 
 **websocket** — receive via `message`; to send, just write a value to `send`:
 ```html
