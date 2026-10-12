@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.0.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
+Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.0.1, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.1/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -39,7 +39,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 **The split auto entry** — one tag, no import map:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.0/dist/split/auto.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.1/dist/split/auto.js"></script>
 <wcs-state features="scopes diagnostics">          <!-- the document's root <wcs-state> -->
   <script type="module">
     export default {
@@ -63,9 +63,9 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.0/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.0/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.0/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.1/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.1/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.1/dist/split/features/formats.js"
   }
 }
 </script>
@@ -142,7 +142,7 @@ A source that cannot load fails the element (§11): `state="<id>"` reads only a 
 | `src="./data.json"` | `fetch(url)` | `connect-src <origin>` |
 | inner `<script type="module">` (method 5 — the default in every example) | text is extracted and imported through a **`blob:` URL** | **the page nonce on the `<script>` that loads state**, or **`script-src blob:`** |
 
-**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
+**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.0.1/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
 
 - **The browser evaluates the inner `<script type="module">` too.** Being a child of `<wcs-state>` does not stop it (only a `<template>` does). Its export goes nowhere, so state is unaffected, but with no CSP — or with the nonce on that inner `<script>` as well — **its top-level code runs twice**: once by the browser, once through state's `blob:` import. Under a CSP without a nonce on it, the browser's run is refused and the console shows one violation; state still loads. Either way, **keep side effects out of the top level** (no `fetch`, logging or assignments to globals next to `export default { … }`); do that work in methods or `$connectedCallback`.
 - **`<wcs-guard-handler>` goes through `blob:` too, and has no `src=` form.** The nonce on the `<script>` that loads router admits it the same way. Without a nonce, using guards forces `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source) — control access on the route-content side instead if the policy must stay strict.
@@ -212,6 +212,7 @@ property[#modifier[,modifier...]][|input filter...]: path[|output filter...]
   | More filter arguments than the filter takes, or fewer than it needs | The filter's own arity (§7) |
   | An empty path segment on the right (`textContent: a.`, `a..b`) | The real path — a **leading** dot is the loop shorthand (`.name`, `state: .`) |
   | A left side that names no property (`": x"`, `"#ro: x"`); a dotted namespace word (`.class:`, `.attr:`, `.style:`, `.command:`, `.eventToken:`, `.state:`) | Name the property; the namespaces are undotted |
+  | `class:` / `attr:` without a name (`class: done` — #122 since 4.0.1; it set an element property named `class`, which does nothing) | `class.done: done` / `attr.href: url`; `className:` for the whole class attribute |
   | A `__proto__` / `prototype` segment anywhere in a path (#120 — in writes, `$resolve`, `$setAll` and reads too) | — |
   | A path over 512 segments | Real paths are under ten |
   | A `*` in a row that ranges over another list than the enclosing `for:` (`{{ b.*.y }}` inside `for: a`, `[wcs/wildcard-rank]` #1403); `state: .` or a `.`-path outside any `for:` (#1402) | Read the other list's row in a getter with `$resolve(path, indexes)` |
@@ -1044,7 +1045,7 @@ Working demo: `examples/state-intersect-scroll/` (its feed).
 
 | 3.x form | In 4.0 | Write instead |
 |---|---|---|
-| Filters `inc` `dec` `fix` `uc` `lc` `cap` `rep` `rev` `pad` `null` | `[wcs/filter-unknown]` #501 at initialization (lint: warning naming the replacement) | `add` `sub` `toFixed` `upper` `lower` `capitalize` `repeat` `reverse` `padStart` `nullIfEmpty` |
+| Filters `inc` `dec` `fix` `uc` `lc` `cap` `rep` `rev` `pad` `null` | `[wcs/filter-unknown]` #501 at initialization (lint: error naming the replacement) | `add` `sub` `toFixed` `upper` `lower` `capitalize` `repeat` `reverse` `padStart` `nullIfEmpty` |
 | `substr(start, length)` | #501 | `slice(start, start + length)` — a negative start counts from the end in both, but the end differs: check those by hand |
 | `this.$trackDependency` / `this.$untrackDependency` | throws when read (`[wcs/name-alias]` #1701) | `$dependOn` / `$untracked` |
 | `$updatedCallback` / `$streams` declared | throws when the state loads (`[wcs/declaration-alias]` #1601); reading `this.$streams` is `undefined` (lint `wcs/declaration-alias-read`) | `$renderedCallback` / `$stream` |
@@ -1109,7 +1110,7 @@ What a 3.x page shows that a 4.0 one does not: `[wcs/v4-migration]` console warn
 31. A `stateSchema` in the nearest `wcstack.manifest.json` (generated by `wcs-schema emit src/state.ts`, or hand-written) turns a missing path into `wcs/path-nonexistent` (**error**) and `for:` on a non-array into `wcs/path-type-mismatch` — the discovery walks up from the HTML file, and an explicit manifest argument replaces discovery for the whole run. It carries a single `stateSchema` (one tree per root); a volume contributes a subtree via `--mount=<path>`. Paths under a bare `{}` stay silent; methods, getters and `$listKeys` from the inline script still count, and so do row fields the analyzer reads from `concat({ … })` / `toSpliced` / `with` / spread-array assignments. Gate CI with `wcs-schema check` and regenerate with `emit --merge` after changing the state type.
 32. One tree per rootNode: split modules with `mount=` (§2), hand a component a subtree with `state: path` (§12). `name=` / `@name` are gone (`wcs/named-state-deprecated`, error).
 33. Mount rules (`state: path`): an array cannot be the mount root — mount the row (`state: .`) or the object holding it. An own key that shadows a mount-point key stays **private and hides the tree value** (rule R1, `wcs/mount-own-key-shadow`); an explicit partial mount beats a default of the same name. One `<wcs-state bind-component>` per component; a wildcard-terminal accessor (`get "tags.*"()`) over a mounted list raises. The component's **getters are exported** at the mount point — private data keys and methods are not; a tree key of the same name wins (`wcs/mount-export-shadowed`); the first host read may be `undefined` until the component registers, so write `(x ?? 0)`.
-34. `wcs-validate --strict` exits `1` on **warnings** too. It is the way to make a path typo (`wcs/binding-path-missing`), a removed filter name (`wcs/filter-unknown`) or a wildcard-rank warning — all of which the runtime throws on or drops — fail CI; run it once every `<wcs-state src>` resolves, and expect the false warnings on paths of a volume loaded with `src=`.
+34. `wcs-validate --strict` exits `1` on **warnings** too. It is the way to make a path typo (`wcs/binding-path-missing`) or a wildcard-rank warning — both of which the runtime throws on or drops — fail CI (an unknown or removed filter name, `wcs/filter-unknown`, is an error since 4.0.1); run it once every `<wcs-state src>` resolves, and expect the false warnings on paths of a volume loaded with `src=`.
 35. The **root `<wcs-state>` is required** — a page with only `mount=` volumes is a loud error. `mount` must be a static dotted path; `*` / `$` / `#` / `@` / empty segments are refused and lint as `wcs/mount-path-invalid`. A volume on a path the root already has is not grafted; writing a mount point's parent wholesale from the root throws.
 36. `setInitialState()` cannot re-set a tree that already has volumes or mounts on it, cannot re-set a `mount=` volume element itself, and may not change `$behavior` (#45). Write the individual paths, on the root state. Re-setting a plain initialized tree re-renders the page (§11) — hand it a new array when a list changed.
 37. A volume (`<wcs-state mount>`) hosts data, getters, methods and the connected/disconnected callbacks **relative to its mount path**. `$watch` / `$listKeys` / `$renderedCallback` / `$stream` / `$recursion` / `$behavior` / `$features` or an injection on the element → the volume is **not grafted** (`console.error`); tokens, `$on` and `$errorCallback` → not run (`console.warn`). Declare them on the root state with full paths.
