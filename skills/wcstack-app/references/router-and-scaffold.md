@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.md` / `README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md` and, for what `@wcstack/state` 4.0 changes on routes, `docs/migration-v4.md` §3.9 and `packages/state/src/dom/mount.ts`. All verified against the actual files at v4.0.4. The router behaviour 4.0 relies on arrived with router 3.5: a route carries its whole range out and back in (§1), a parameter-only navigation reconnects the route content once (§2), layouts bind on the first navigation (§3). What changes with `@wcstack/state` 4.0 is what state renders inside a route (§1), and `bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have (§1, §6).
+Sources: `packages/router/README.md` / `README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md` and, for what `@wcstack/state` 4.0 changes on routes, `docs/migration-v4.md` §3.9 and `packages/state/src/dom/mount.ts`. All verified against the actual files at v4.1.0. The router behaviour 4.0 relies on arrived with router 3.5: a route carries its whole range out and back in (§1), a parameter-only navigation reconnects the route content once (§2), layouts bind on the first navigation (§3). What changes with `@wcstack/state` 4.0 is what state renders inside a route (§1), and `bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have (§1, §6).
 
 ## 1. Minimal SPA scaffold
 
@@ -22,7 +22,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.0.4/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.1.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -30,7 +30,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ### Basic router structure
 
-**A `<template>` is required directly under `<wcs-router>`**. Place `<wcs-route>` elements inside it. The render target is the `<wcs-outlet>` **right after the `<wcs-router>`** (whitespace and comments may sit between them, another element may not). Without one there, the router creates one right after itself. A `<wcs-outlet>` anywhere else — inside `<main>` while the router sits at the top of `<body>`, or inside the router — is never used: it stays empty while the pages render right after the router (above the header). Since 4.0.4 the router warns `[wcs/router-outlet-misplaced]` on the console and `wcs-validate` reports it. To render inside a region, put the router there too, right before its outlet (`<main><wcs-router>…</wcs-router><wcs-outlet></wcs-outlet></main>`; a router renders nothing itself).
+**A `<template>` is required directly under `<wcs-router>`**. Place `<wcs-route>` elements inside it. The render target is the `<wcs-outlet>` **right after the `<wcs-router>`** (whitespace and comments may sit between them, another element may not). Without one there, the router creates one right after itself. A `<wcs-outlet>` anywhere else — inside `<main>` while the router sits at the top of `<body>`, or inside the router — is never used: it stays empty while the pages render right after the router (above the header). Since 4.1.0 the router warns `[wcs/router-outlet-misplaced]` on the console and `wcs-validate` reports it. To render inside a region, put the router there too, right before its outlet (`<main><wcs-router>…</wcs-router><wcs-outlet></wcs-outlet></main>`; a router renders nothing itself).
 
 ```html
 <wcs-router>
@@ -79,7 +79,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 | `fallback` | Displayed when no route matches |
 | `fullpath` | Full path including ancestors (read-only) |
 | `name` | For identification |
-| `guard` | Enables the guard. The value is the absolute redirect path used when the guard cancels with a falsy return (a non-empty string return redirects there instead — §4) |
+| `guard` | The absolute redirect path used when the guard cancels with a falsy return (default `/`; a non-empty string return redirects there instead — §4). A route with a `<wcs-guard-handler>` has a guard without it (since 4.1 — before, the landing route went unguarded); a handler set from JS (`guardHandler`) needs it |
 
 Route elements are **detached controllers** after parsing: they are not part of the live DOM, cannot be found with `querySelector`, and cannot be bound with `data-wcs`. Match results (`params` / `typedParams` / `routeName`) are read from the **`<wcs-router>` element** — see §5. `guardHandler` can still be set from JS on a route object obtained before parsing.
 
@@ -198,7 +198,7 @@ Manages the document `<head>` per route. Stack-based: the last one connected win
 </wcs-route>
 ```
 
-`false` cancels → navigates to the path in the `guard` attribute. `<wcs-guard-handler>` is removed from the DOM after parsing. Ignored if placed outside a `<wcs-route>`. Can also be set from JS via `route.guardHandler = fn`.
+`false` cancels → navigates to the path in the `guard` attribute. Since 4.1 a redirect **replaces** the history entry (Back does not loop back into the redirect), is not logged, and guards that keep redirecting each other stop after 10 with an error; a redirect on page load stays in the page. **A guard cannot see the state tree, and on page load the landing route's guard can run before `@wcstack/state` has loaded** — read the session inside the function from where the page keeps it (`localStorage` under the `<wcs-storage>` key, stored as JSON: `JSON.parse(localStorage.getItem("app.session"))?.token`), which is also current in every tab. The module is evaluated **once**: never read the session at its top level. `toPath` has no query string — rebuild it from the third argument's `searchParams` for `?next=`. A redirected `navigate()` rejects with `AbortError`. `<wcs-guard-handler>` is removed from the DOM after parsing. Ignored if placed outside a `<wcs-route>`. Can also be set from JS via `route.guardHandler = fn`.
 
 **Guard return values and the third argument** — the guard is the one async step before the route content swaps, so it doubles as the route's **loader** and **dynamic redirect**:
 
@@ -229,7 +229,7 @@ The third argument is a frozen `{ params, typedParams, searchParams, routeName }
 
 `data` is the one router output that is **not** frozen (it is the guard's own object) and the router does not cache it — same route with other params loads again. Use it when the page must not show the new route with empty content (a `<wcs-view-transition>` otherwise animates a blank frame). A loader guard is still a guard under CSP: no `src=` form (below).
 
-**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.0.4/dist/auto.min.js">` runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead. A CSP-blocked guard is reported as CSP (on Firefox too), and the message names the nonce fix.
+**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.1.0/dist/auto.min.js">` runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead. A CSP-blocked guard is reported as CSP (on Firefox too), and the message names the nonce fix.
 
 ### basename
 
@@ -279,8 +279,9 @@ Resolution order: (1) `basename` attribute → (2) derived from `<base href>` �
 | `searchParams` | output | Query as `Record<string,string>`; duplicate keys last-wins, `URLSearchParams` decoding; `{}` when none |
 | `routeName` | output | `name` of the deepest matched route (fallback route's `name` on a 404); `""` when unnamed |
 | `data` | output | What the current navigation's guards **returned as an object** (§4 loader) — `null` when no guard returned one, including before init; a query-only same-match keeps the previous value. The one member that is **not** frozen: it is the guard's own object, passed through; the router neither copies nor caches it. Fires `wcs-router:data-changed` |
-| `navigateUrl` | write (null-idle transient) | Assign a target to **push**-navigate; resets itself to `null` on finish; `null`/`""` writes are no-ops |
+| `navigateUrl` | write (null-idle transient) | Assign a target to **push**-navigate; resets itself to `null` on finish; `null`/`""` writes are no-ops The target is a **route path** (the basename is added for you) — not an `href` (`/ja/x` under the basename `/ja` goes to `/ja/ja/x`) |
 | `replaceUrl` | write (null-idle transient) | Same contract, but **replaces** the history entry |
+| `leaveConfirm` | input (`leave-confirm`, 4.1) | While a non-empty string, a navigation to **another route** (link, Back / Forward, `navigate()`) asks `confirm(leaveConfirm)` first and stays when declined; closing / reloading gets the browser prompt. Bind unsaved changes: `leaveConfirm: discardPrompt` with `get discardPrompt() { return this.dirty ? "Discard your changes?" : null; }`. Query-only navigations and a confirmed navigation's redirect do not ask; a save handler may clear it and write `navigateUrl` together |
 | `basename` | input | Writes the `basename` attribute, which the router reads **once, at initialization** — set it in markup (a later write does not move the routing base). Reads back the basename in effect |
 
 - Outputs are **read** when the binding attaches, then streamed via change events — a binding attaching after the first route resolution misses nothing. On a committed navigation all values commit first, then events fire `data` → `params` → `routeName` → `search` → `path`, each only when changed (`data` by identity); a guard-rejected navigation updates and fires nothing. The exposed objects are **frozen snapshots** — copy, don't mutate (`data` is the exception: it is owned by the guard that returned it).
