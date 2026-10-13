@@ -43,7 +43,7 @@ Copy `skills/wcstack-app/` into:
 
 ## Versioning
 
-The plugin version tracks the wcstack release the content was last verified against (currently **4.0.4**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
+The plugin version tracks the wcstack release the content was last verified against (currently **4.1.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
 
 Pages that must stay on wcstack 3.x pin the major in their CDN URLs (`https://esm.run/@wcstack/state@3/auto`) and use a skill release verified against 3.5.4 (the `v3.5.4` tag of this repository).
 
