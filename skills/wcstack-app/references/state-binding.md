@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.1.1, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
+Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.2.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.1.1/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.2.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -39,7 +39,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 **The split auto entry** — one tag, no import map:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.1.1/dist/split/auto.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.2.0/dist/split/auto.js"></script>
 <wcs-state features="scopes diagnostics">          <!-- the document's root <wcs-state> -->
   <script type="module">
     export default {
@@ -63,9 +63,9 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.1.1/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.1.1/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.1.1/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.2.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.2.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.2.0/dist/split/features/formats.js"
   }
 }
 </script>
@@ -142,7 +142,7 @@ A source that cannot load fails the element (§11): `state="<id>"` reads only a 
 | `src="./data.json"` | `fetch(url)` | `connect-src <origin>` |
 | inner `<script type="module">` (method 5 — the default in every example) | text is extracted and imported through a **`blob:` URL** | **the page nonce on the `<script>` that loads state**, or **`script-src blob:`** |
 
-**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.1.1/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
+**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.2.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
 
 - **The browser evaluates the inner `<script type="module">` too.** Being a child of `<wcs-state>` does not stop it (only a `<template>` does). Its export goes nowhere, so state is unaffected, but with no CSP — or with the nonce on that inner `<script>` as well — **its top-level code runs twice**: once by the browser, once through state's `blob:` import. Under a CSP without a nonce on it, the browser's run is refused and the console shows one violation; state still loads. Either way, **keep side effects out of the top level** (no `fetch`, logging or assignments to globals next to `export default { … }`); do that work in methods or `$connectedCallback`.
 - **`<wcs-guard-handler>` goes through `blob:` too, and has no `src=` form.** The nonce on the `<script>` that loads router admits it the same way. Without a nonce, using guards forces `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source) — control access on the route-content side instead if the policy must stay strict.
@@ -480,11 +480,11 @@ this["user.name"] = "Bob";   // ✅ path assignment → DOM update
 this.user.name = "Bob";      // ❌ runtime ignores it; lint wcs/nested-assign (error)
 ```
 
-## 7. Filters (47 built-ins; no public registration API)
+## 7. Filters (48 built-ins; no public registration API)
 
 - Comparison: `eq` `ne` `not` `lt` `le` `gt` `ge`
 - Arithmetic: `add` `sub` `mul` `div` `mod` `abs` `clamp`
-- Number formatting: `toFixed` `round` `floor` `ceil` `locale` `percent` `unit`
+- Number formatting: `toFixed` `round` `floor` `ceil` `locale` `percent` `unit` `currency`
 - String: `upper` `lower` `capitalize` `trim` `slice` `padStart` `padEnd` `repeat` `reverse` `truncate` `join`
 - Type conversion: `int` `float` `boolean` `number` `string` `nullIfEmpty`
 - Date: `date` `time` `datetime` `ymd` `hms`
@@ -492,11 +492,11 @@ this.user.name = "Bob";      // ❌ runtime ignores it; lint wcs/nested-assign (
 
 The comparison, arithmetic (except the number formatting), conversion and truthy/default families are the core set; the formatting filters come from `features/formats` (`/auto` and the full entry install both — §1). There is no `substr` (write `slice(start, start + length)`; `slice` takes the end index) and none of the 3.x short names (`uc`, `inc`, `fix`, `pad`, `null`, … — §16): an unknown name throws `[wcs/filter-unknown]` #501, and for a removed 3.x name the diagnostics feature names the replacement instead of a did-you-mean.
 
-With arguments: `gt(10)`, `slice(0,10)`, `padStart(5)` or `padStart(5,'0')` — quote the pad character, since an unquoted `0` is a typed *number* and lint reports `wcs/filter-arg-type` — `locale(ja-JP)`, `date(ja-JP)`, `ymd(/)`, `eq('admin')` (quotes allowed, bare allowed, comma-separated). Chaining: `price|mul(1.1)|round(2)|locale(ja-JP)`. Do transformations the built-ins cannot express in a getter.
+With arguments: `gt(10)`, `slice(0,10)`, `padStart(5)` or `padStart(5,'0')` — quote the pad character, since an unquoted `0` is a typed *number* and lint reports `wcs/filter-arg-type` — `locale(ja-JP)`, `date(ja-JP)`, `date(en-US,medium)` → "Oct 13, 2026" (4.2: a style second — `full` / `long` / `medium` / `short`; a style alone keeps the page locale, `date(medium)`), `currency(JPY)` / `currency(USD,en-US)` (4.2: an ISO 4217 code, checked when the bindings are planned), `ymd(/)`, `eq('admin')` (quotes allowed, bare allowed, comma-separated). Chaining: `price|mul(1.1)|round(2)|locale(ja-JP)`. Do transformations the built-ins cannot express in a getter.
 
 **Filter arguments are typed.** Unquoted `true` / `false` / `null` / numbers are typed literals, quoted arguments are strings: `done|eq(true)` matches `true`, `eq('true')` does not, `eq(null)` matches `null`; a non-string literal compares as itself (a number never equals `null` or `true`), and a form value `"1"` still matches `eq(1)`. `defaults(v)` returns the typed value (`defaults(0)` → `0`; `defaults('0')` for the text). `truthy` / `falsy` / `defaults` use JavaScript truthiness (`0n` is falsy). Still prefer binding a boolean directly (`class.done: done`, `hidden: done|not`). `coalesce(v)` replaces only `null` / `undefined` while `defaults(v)` replaces every falsy value (`0`, `false`, `""` included) — pick `coalesce` for a count that may legitimately be `0`. `add` / `sub` require their argument.
 
-**Arity is checked** (`[wcs/filter-arity]`, the bounds lint uses): `join(a,b)` throws "accepts at most 1 argument(s)"; `date` / `time` / `datetime` / `locale` / `toFixed` / `round` / `floor` / `ceil` / `percent` / `join` / `ymd` / `hms` take 0–1, `slice` / `padStart` / `padEnd` / `truncate` 1–2, `clamp` 2. `Object.prototype` names (`|toString`, `|valueOf`) are `wcs/filter-unknown`.
+**Arity is checked** (`[wcs/filter-arity]`, the bounds lint uses): `join(a,b)` throws "accepts at most 1 argument(s)"; `locale` / `toFixed` / `round` / `floor` / `ceil` / `percent` / `join` / `ymd` / `hms` take 0–1, `date` / `time` / `datetime` 0–2, `slice` / `padStart` / `padEnd` / `truncate` / `currency` 1–2, `clamp` 2. `Object.prototype` names (`|toString`, `|valueOf`) are `wcs/filter-unknown`.
 
 Contracts worth knowing:
 
@@ -509,7 +509,7 @@ Contracts worth knowing:
 - `padStart`'s default pad character is `0` while `padEnd`'s is a space (deliberately not symmetric — `padStart` exists for zero-padding).
 - Whitespace inside quotes is literal: `padStart(5, ' ')` pads with a space and `join(' / ')` works.
 
-**The default locale is `<html lang>`, read when `@wcstack/state` is evaluated**, falling back to `'en'`. The four locale-dependent filters — `locale`, `date`, `time`, `datetime` — use it. Always set `<html lang>` in the markup; an explicit `bootstrapState({ locale })` still wins; a tag `Intl` does not take is reported (`#48`) and `'en'` is used. **Changing the locale later re-renders nothing** (it is a page setting, not state). Per-call overrides (`price|locale(fr-FR)`) are fixed at bind time. For pages that switch language without reloading, translations belong on a path, not in a filter (`docs/i18n-design.md`).
+**The default locale is `<html lang>`, read when `@wcstack/state` is evaluated**, falling back to `'en'`. The five locale-dependent filters — `locale`, `currency`, `date`, `time`, `datetime` — use it. Always set `<html lang>` in the markup; an explicit `bootstrapState({ locale })` still wins; a tag `Intl` does not take is reported (`#48`) and `'en'` is used. **Changing the locale later re-renders nothing** (it is a page setting, not state). Per-call overrides (`price|locale(fr-FR)`) are fixed at bind time. For pages that switch language without reloading, translations belong on a path, not in a filter (`docs/i18n-design.md`).
 
 ## 8. Event Handling
 
@@ -639,7 +639,7 @@ export default {
 
 ## 10. `$watch` — headless change subscription
 
-`$renderedCallback` is binding-driven: a value nothing renders is invisible to it. **`$watch` fires on state changes whether or not the path has a DOM binding.** Watches start after `$connectedCallback` (a write before then fires nothing), but since 4.1 **a value an element already held when its binding attached** — an open `<wcs-sse>`'s `connected`, the router's first `typedParams` — fires the watch once when they start (`prev` = the seed): before, it fired or not depending on load speed.
+`$renderedCallback` is binding-driven: a value nothing renders is invisible to it. **`$watch` fires on state changes whether or not the path has a DOM binding.** Watches start after `$connectedCallback` (a write before then fires nothing), but since 4.1 **a value an element already held when its binding attached** — an open `<wcs-sse>`'s `connected`, the router's first `typedParams` — fires the watch once when they start (`prev` = the seed): before, it fired or not depending on load speed. Since 4.2 a watch on a root getter that reads such a path (`get loggedIn()` over a `<wcs-storage>`'s saved session) fires once too, with `prev` `undefined`.
 
 ```javascript
 export default {
