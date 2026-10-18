@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.3.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
+Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.4.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.3.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.4.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -39,7 +39,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 **The split auto entry** — one tag, no import map:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.3.0/dist/split/auto.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.4.0/dist/split/auto.js"></script>
 <wcs-state features="scopes diagnostics">          <!-- the document's root <wcs-state> -->
   <script type="module">
     export default {
@@ -63,9 +63,9 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.3.0/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.3.0/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.3.0/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.4.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.4.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.4.0/dist/split/features/formats.js"
   }
 }
 </script>
@@ -142,7 +142,7 @@ A source that cannot load fails the element (§11): `state="<id>"` reads only a 
 | `src="./data.json"` | `fetch(url)` | `connect-src <origin>` |
 | inner `<script type="module">` (method 5 — the default in every example) | text is extracted and imported through a **`blob:` URL** | **the page nonce on the `<script>` that loads state**, or **`script-src blob:`** |
 
-**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.3.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
+**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.4.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
 
 - **The browser evaluates the inner `<script type="module">` too.** Being a child of `<wcs-state>` does not stop it (only a `<template>` does). Its export goes nowhere, so state is unaffected, but with no CSP — or with the nonce on that inner `<script>` as well — **its top-level code runs twice**: once by the browser, once through state's `blob:` import. Under a CSP without a nonce on it, the browser's run is refused and the console shows one violation; state still loads. Either way, **keep side effects out of the top level** (no `fetch`, logging or assignments to globals next to `export default { … }`); do that work in methods or `$connectedCallback`.
 - **`<wcs-guard-handler>` goes through `blob:` too, and has no `src=` form.** The nonce on the `<script>` that loads router admits it the same way. Without a nonce, using guards forces `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source) — control access on the route-content side instead if the policy must stay strict.
@@ -401,7 +401,7 @@ Three rules decide what the graph sees. None matters until you cross one, and th
 | **Reads inside a setter are not tracked.** A setter is an imperative assignment, not a derivation | A setter that reads `this.a` to decide what to write does not run again when `a` changes — only a getter re-runs. `$untracked(fn)` applies this rule to a getter on purpose |
 | **The same-value guard is primitive-only.** An `Object.is`-equal primitive write is dropped before anything is enqueued; an object or array write always passes, even the same reference | Assigning the same string again fires nothing; assigning the same object again re-fires its bindings and `$watch` (`semantics: "event"` properties are exempt either way). `$behavior: { sameValueGuard: false }` turns the guard off for that tree |
 
-The storage "persist a form as one object" recipe (`io-node-catalog.md` §2) is where the first rule bites most often: the accessor pair's getter must read `this["form.name"]`, not `this.form.name`.
+The storage "persist a form as one object" recipe (`io-node-catalog.md` §2) is where the first rule bites most often: the accessor pair's getter must read `this["form.name"]`, not `this.form.name`. The recipe also rests on the **write-back rule**: when state writes a member (`element.value = v`) and the element dispatches that member's event from the setter, synchronously, with the same value (`Object.is`), the event is state's own write coming back — it is not written to the state and the accessor pair's setter does not run. No `$behavior` key changes this. An event dispatched later (after an `await`, a timer) or carrying another object (a copy, JSON parsed again — another tab's save) is the element's own write: the setter runs, so write it to accept a whole snapshot and to change nothing when it receives what the state already holds.
 
 ### Demand roots — what makes a getter run
 
@@ -414,7 +414,7 @@ Path getters are **lazy**; "does this getter run?" depends on where demand comes
 | `this.$getAll(path, indexes?)` | Get all values of a wildcard path as an array (for aggregation). `indexes` is a **prefix** over the path's wildcards — missing levels expand fully, `[]` always means "every match"; **more than the `*` count throws `wcs/index-arity`**. **Omitting `indexes` defaults to the enclosing loop context** — `this.$getAll("regions.*.prefectures.*.population")` inside a `regions.*` getter narrows to the current region. If the path shares **no** wildcard level with a loop context that holds indexes, it throws (`#6`) rather than silently reading everything — pass `[]` explicitly there. A non-array `indexes` throws |
 | `this.$setAll(path, indexes, value, options?)` | Write to **every** address a wildcard path matches, in place — see below |
 | `this.$resolve(path, indexes, value?)` | Read/write at specific indexes. The index count must match the path's `*` count **exactly** (`wcs/index-arity`). **The argument count decides** — two arguments read, three write (`undefined` included). On a readonly proxy (`createState("readonly", …)`) a write throws `This state is readonly.` (`#8`), and so does `$setAll` |
-| `this.$postUpdate(path)` | Manually emit an update notification (reaches keyed-selection rows too) |
+| `this.$postUpdate(path)` | Manually emit an update notification (reaches keyed-selection rows too). A `*` in the path is the current row's index, as in a getter: from a row's handler `$postUpdate("rows.*.cells.*.text")` announces that row only — name every row with explicit indexes. A path that resolves nowhere updates nothing (`[wcs/post-update-path-missing]` since 4.4) |
 | `this.$dependOn(path)` / `this.$untracked(fn)` | Manually register / suppress dependencies |
 | `this.$eq(path, key)` / `this.$eqPath(path, keyPath)` / `this.$eqIndex(path, level?)` | Keyed subscription — "is `path` equal to this row's key?" without a dependency on `path` from every row. See below |
 | `this.$stateElement` | IStateElement access |
@@ -829,7 +829,7 @@ A Light DOM component is written exactly like the Shadow one — `<wcs-state bin
 
 ### Your own `static wcBindable` element: what the two-way binding writes back
 
-A third option is a hand-written class that declares `static wcBindable` itself (it then gets spread, command tokens and event tokens like an I/O node). The one rule that is easy to miss: when the element dispatches `properties[].event`, the value written to state is **`getter(event)`**, and with no `getter` the wc-bindable default is **`(e) => e.detail` — the whole `detail`, as-is**. The declared property is *not* read off the element at that moment (only the initial sync reads it). Dispatching `detail: { value: 7 }` without a `getter` therefore writes the object `{ value: 7 }` to state and the write-back becomes `NaN`. `@wcstack/lint` cannot see it (the payload shape is not static); the runtime warns once per element and property (`wcs/default-getter-mismatch`) for the two shapes it can tell apart at the event — a `detail` that is `undefined` while the element property has a value, and a `detail` object carrying a `<propName>` key while the property is not an object. Any other mismatch still goes through unnoticed, and occurrence properties (`semantics: "event"`) are exempt. Use one of the two conforming shapes:
+A third option is a hand-written class that declares `static wcBindable` itself (it then gets spread, command tokens and event tokens like an I/O node). **In a `for:` row or an `if:` branch the element receives its inputs before `connectedCallback`** — 4.0 binds the content before it inserts it (at page level the element is connected first): render from the current properties in `connectedCallback`, never reset them to defaults there, or a value state set (an entry the element held, not yet accepted) is lost. Since 4.4 the lint checks the page's own element against its literal `static wcBindable` (`wcs/tag-member-unknown`). The one rule that is easy to miss: when the element dispatches `properties[].event`, the value written to state is **`getter(event)`**, and with no `getter` the wc-bindable default is **`(e) => e.detail` — the whole `detail`, as-is**. The declared property is *not* read off the element at that moment (only the initial sync reads it). Dispatching `detail: { value: 7 }` without a `getter` therefore writes the object `{ value: 7 }` to state and the write-back becomes `NaN`. `@wcstack/lint` cannot see it (the payload shape is not static); the runtime warns once per element and property (`wcs/default-getter-mismatch`) for the two shapes it can tell apart at the event — a `detail` that is `undefined` while the element property has a value, and a `detail` object carrying a `<propName>` key while the property is not an object. Any other mismatch still goes through unnoticed, and occurrence properties (`semantics: "event"`) are exempt. Use one of the two conforming shapes:
 
 ```javascript
 class YenInput extends HTMLElement {
