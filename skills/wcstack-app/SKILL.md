@@ -320,6 +320,9 @@ Run `npx @wcstack/lint` without `--errors-only` first (§5), fix its actionable 
 | (Vue) `const { ref, values } = useWcBindable()` + `<x :ref="ref">` in `<script setup>` | The ref is unwrapped to `null`: the adapter never binds, `values` stays empty, no warning | `const { ref: el, values } = useWcBindable()` + `<x ref="el">` |
 | (React / Vue) a reactive list posted to `<wcs-worker>` / `<wcs-broadcast>`, `toRaw()` included | `DataCloneError` in `error`, the message lost (since 4.6 `[wcs/post-uncloneable]`) | `JSON.parse(JSON.stringify(list))` |
 | (React) `trigger={flag}` with `setFlag(true)` per click | Runs once; the second click writes nothing | `el.fetch()` / `el.upload()` from the handler |
+| A `debounce` (or `throttle`) filter: `notice: msg\|debounce(1000)` | No such filter: `[wcs/filter-unknown]`, and at page level the whole `<wcs-state>` fails to initialize | Settle the source with `<wcs-debounce wait="1000" data-wcs="source: msg; value: settled">` and bind `settled` |
+| A page left open for hours resyncs in `$connectedCallback` or on `online` only | After a sleep, a freeze or a back/forward-cache restore nothing runs: the data stays hours old, connections that died stay `connected: true` | One wake handler (`visibilitychange`, persisted `pageshow`, `resume`, `online`, a clock gap) and `stale-after` on long-lived streams (`docs/long-lived-pages.md`) |
+| Elapsed time from `<wcs-timer>` ticks (`tick * interval`) | Throttled when hidden, lost asleep: an hour asleep counts seconds | Read `Date.now()` on each tick and keep it in state |
 
 ## Minimal template (starting point)
 
