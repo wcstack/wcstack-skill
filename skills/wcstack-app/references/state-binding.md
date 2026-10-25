@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.6.2, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
+Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.7.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.6.2/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -30,7 +30,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 - **Use the version-pinned direct path on `cdn.jsdelivr.net`.** `esm.run` redirects to the `+esm` endpoint, which re-bundles server-side, so a fixed digest can never match there. jsDelivr's plain path does not resolve `package.json` `exports`, so name the real file (`/npm/@wcstack/state/auto` is a 404; `@<version>/dist/auto.min.js` is a 200).
 - **`crossorigin` is not needed** — `type="module"` is always fetched in CORS mode.
 - **Get digests from the GitHub Release** (a table in the body, plus a machine-readable `sri.json` asset), computed from the published tree. Never from jsDelivr's data API: the point of SRI is not trusting the CDN, so letting it self-report is circular.
-- **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. Named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127 / Safari 18; not Firefox).
+- **Not covered, by design**: your state definition (inline `<script>` or `src="./state.js"`), route guard scripts, and autoloader-resolved components — all page-supplied code that is dynamically imported at runtime. Named imports from `dist/index.esm.js` need import-map `integrity` (Chrome 127, Safari 18, Firefox 138).
 
 ### Loading only the features a page uses — split entries
 
@@ -39,7 +39,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 **The split auto entry** — one tag, no import map:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.6.2/dist/split/auto.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/split/auto.js"></script>
 <wcs-state features="scopes diagnostics">          <!-- the document's root <wcs-state> -->
   <script type="module">
     export default {
@@ -54,7 +54,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 - **`features="…"`** on the document's root `<wcs-state>` (the first one without `mount` and `bind-component`) is read once, before `<wcs-state>` is defined: the place for `scopes` (`bind-component`, `mount=`, DCC — it must exist before any `<wcs-state>` starts) and for development aids (`diagnostics`, `devtools`). Only the split auto entry reads it; on another `<wcs-state>` lint warns `wcs/features-invalid`.
 - **`$features: ["temporal", "formats"]`** names what a state needs; the split auto entry loads the missing ones before it builds that state, the other entries only check they are installed (`[wcs/feature-not-installed]`). A value that is not an array throws `#46`; a volume may not declare it.
-- Names: `formats`, `diagnostics`, `temporal`, `list-keys`, `scopes`, `recursion`, `ssr`, `devtools`. Any other name fails with `[wcs/feature-unknown]` (lint: the same code). Features load from `./features/<name>.js` beside `auto.js`, so only those eight files can ever be imported.
+- Names: `formats`, `diagnostics`, `temporal`, `list-keys`, `scopes`, `recursion`, `ssr`, `devtools`, `native-commands`. Any other name fails with `[wcs/feature-unknown]` (lint: the same code). Features load from `./features/<name>.js` beside `auto.js`, so only those nine files can ever be imported.
 - Load it from a version-pinned plain `/npm/` path, **never `esm.run`**. It is not in `exports`; with a bundler use the import-map form's imports.
 
 **Core plus features through an import map** (or a bundler):
@@ -63,9 +63,9 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.6.2/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.6.2/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.6.2/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/split/features/formats.js"
   }
 }
 </script>
@@ -80,7 +80,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 | Entry | Adds |
 |---|---|
-| `@wcstack/state/core` | `data-wcs`, `{{ }}` and comment bindings, `for` / `if`, path getters, events (`#direct` included), `$command` / `$on`, `$eq*`, `$errorCallback`, the core filters (`eq ne not lt le gt ge`, `add sub mul div mod abs clamp`, `int float boolean number string nullIfEmpty`, `truthy falsy defaults coalesce`), `bootstrapState`, `installFeatures`, `getBindingsReady` |
+| `@wcstack/state/core` | `data-wcs`, `{{ }}` and comment bindings, `for` / `if`, path getters, events (`#direct` included), `$command` / `$on`, `$eq*`, `$errorCallback`, the 10 condition filters (`eq ne not lt le gt ge truthy falsy boolean`) — arithmetic, conversion and defaults (`add` `int` `number` `defaults` `coalesce` …) are in `formats`, `bootstrapState`, `installFeatures`, `getBindingsReady` |
 | `…/features/formats` | the formatting filters: `toFixed locale upper lower capitalize trim slice padStart padEnd repeat reverse truncate join round floor ceil percent unit date time datetime ymd hms` (§7) |
 | `…/features/temporal` | `$watch`, `$stream` |
 | `…/features/list-keys` | `$listKeys` (outside the core in 4.0) |
@@ -91,7 +91,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 | `…/features/diagnostics` | the sentences of the numbered messages (did-you-mean, the replacement for a removed 3.x name), the bound / `$watch` path warnings (`wcs/binding-path-missing`), the CSP / Trusted Types explanations |
 | `@wcstack/state/define` | `defineState` and the types — no runtime |
 
-- **Never load the split form through `esm.run`.** Its `+esm` endpoint re-bundles each entry and inlines the shared core chunk into every one, so each entry carries its own engine and a feature installs into a copy the core never sees — the page throws `[wcs/feature-not-installed]` although `installFeatures` ran. Use the version-pinned plain jsDelivr path (it does not read `exports`: name the file under `dist/split/`) or a bundler; then every relative import resolves to the same chunk URL and the engine is evaluated once. Chunk file names under `dist/split/chunks/` carry a content hash — take them from the version you pin when you list them (preload, import-map `integrity`, Chrome 127 / Safari 18; not Firefox — `docs/sri.md` §5).
+- **Never load the split form through `esm.run`.** Its `+esm` endpoint re-bundles each entry and inlines the shared core chunk into every one, so each entry carries its own engine and a feature installs into a copy the core never sees — since 4.7 `installFeatures` refuses it with `[wcs/feature-foreign]` (up to 4.6 it accepted it, and a `$watch` from it never ran). The same refusal meets two versions on one page, and a self-hosted directory replaced in place under a tab still running the old core: self-host under versioned URLs and keep the old ones. Use the version-pinned plain jsDelivr path (it does not read `exports`: name the file under `dist/split/`) or a bundler; then every relative import resolves to the same chunk URL and the engine is evaluated once. Chunk file names under `dist/split/chunks/` carry a content hash — never list them by hand: since 4.7 each release's `sri.json` carries every file of `dist/split` and the release notes the import-map `integrity` block to copy (Chrome 127, Safari 18, Firefox 138 — `docs/sri.md` §5.1). An entry for a URL nobody requests is ignored, and a requested chunk without one is not checked — a list from another build protects nothing, without a word.
 - **Under a CSP the split files need only the delivery host** in `script-src`, like `auto.min.js` (no `eval`; the inline-state `blob:` rule of §2 still applies). The split auto entry carries no inline script; the import-map recipe carries **two** — the import map and the bootstrap module — and each needs the page nonce or a hash. `docs/csp.md` §2.1.
 - **A missing feature is loud**: a declaration that needs one throws `[wcs/feature-not-installed] <key> needs the add-on @wcstack/state/features/<name>` when the state loads (`$watch` / `$stream` → temporal, `$listKeys` → list-keys, `$recursion` → recursion, `bind-component` / `mount=` → scopes, `enable-ssr` → ssr), and a formatting filter without `formats` throws `[wcs/filter-unknown] … "upper" is in the formats add-on — install it …` when the bindings are planned. **The one silent omission is `features/diagnostics`**: without it messages print as `[wcs/<code>] #<number> <values>` (look the number up in the wcstack repo's `docs/state-errors.md`) and a mistyped bound path gets no console warning at all. Keep it (or `/auto`) while developing, and rely on lint either way.
 - `installFeatures` is idempotent (a feature already installed is skipped); call it before `bootstrapState()` — a state that declares a feature's key before that feature is installed fails with `[wcs/feature-not-installed]`.
@@ -142,7 +142,7 @@ A source that cannot load fails the element (§11): `state="<id>"` reads only a 
 | `src="./data.json"` | `fetch(url)` | `connect-src <origin>` |
 | inner `<script type="module">` (method 5 — the default in every example) | text is extracted and imported through a **`blob:` URL** | **the page nonce on the `<script>` that loads state**, or **`script-src blob:`** |
 
-**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.6.2/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
+**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
 
 - **The browser evaluates the inner `<script type="module">` too.** Being a child of `<wcs-state>` does not stop it (only a `<template>` does). Its export goes nowhere, so state is unaffected, but with no CSP — or with the nonce on that inner `<script>` as well — **its top-level code runs twice**: once by the browser, once through state's `blob:` import. Under a CSP without a nonce on it, the browser's run is refused and the console shows one violation; state still loads. Either way, **keep side effects out of the top level** (no `fetch`, logging or assignments to globals next to `export default { … }`); do that work in methods or `$connectedCallback`.
 - **`<wcs-guard-handler>` goes through `blob:` too, and has no `src=` form.** The nonce on the `<script>` that loads router admits it the same way. Without a nonce, using guards forces `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source) — control access on the route-content side instead if the policy must stay strict.
@@ -217,7 +217,7 @@ property[#modifier[,modifier...]][|input filter...]: path[|output filter...]
   | A path over 512 segments | Real paths are under ten |
   | A `*` in a row that ranges over another list than the enclosing `for:` (`{{ b.*.y }}` inside `for: a`, `[wcs/wildcard-rank]` #1403); `state: .` or a `.`-path outside any `for:` (#1402) | Read the other list's row in a getter with `$resolve(path, indexes)` |
 - **A modifier never changes the kind of binding:** `radio#ro:` / `checkbox#ro:` stay radio / checkbox bindings.
-- **Empty values:** display surfaces — `textContent` / `innerText` / `innerHTML`, `{{ }}` and comment bindings, `attr.*`, `style.*`, `class.*` — treat `undefined` and `null` alike: the text is emptied, the attribute or style removed, the class taken off. Element inputs (every other property, spread) skip `undefined` (the element keeps its own default) and clear on `null`. The formatting filters `upper` / `lower` / `capitalize` / `trim` / `slice` / `padStart` / `padEnd` / `repeat` / `reverse` / `truncate` / `unit` pass `undefined` / `null` through. The filters for which an absent value *is* the input (`defaults` / `coalesce` / `nullIfEmpty` / `boolean` / `truthy` / `falsy` / `not` / `eq` / `ne`) read it as such; the conversions and the number / date / array families do not pass it through — a filter that requires a number, a date or an array throws (`#28`–`#30`), confined to that binding and routed to `$errorCallback`.
+- **Empty values:** display surfaces — `textContent` / `innerText` / `innerHTML`, `{{ }}` and comment bindings, `attr.*`, `style.*`, `class.*` — treat `undefined` and `null` alike: the text is emptied, the attribute or style removed, the class taken off. Element inputs (every other property, spread) skip `undefined` (the element keeps its own default) and clear on `null`. The formatting filters `upper` / `lower` / `capitalize` / `trim` / `slice` / `padStart` / `padEnd` / `repeat` / `reverse` / `truncate` / `unit` pass `undefined` / `null` through. The filters for which an absent value *is* the input (`defaults` / `coalesce` / `nullIfEmpty` / `boolean` / `truthy` / `falsy` / `not` / `eq` / `ne`) read it as such; the conversions and the number / array families do not pass it through — a filter that requires a number, a date or an array throws on a value of another type (`#28`–`#30`); since 4.7 the date family (`date` `time` `datetime` `ymd` `hms`) passes `undefined` / `null` through, so a date that arrives later renders nothing until then, confined to that binding and routed to `$errorCallback`.
 
 ### What is bound, and in which order
 
