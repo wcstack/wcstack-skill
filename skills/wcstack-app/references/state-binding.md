@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.7.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
+Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.8.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -39,7 +39,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 **The split auto entry** — one tag, no import map:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/split/auto.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/split/auto.js"></script>
 <wcs-state features="scopes diagnostics">          <!-- the document's root <wcs-state> -->
   <script type="module">
     export default {
@@ -63,9 +63,9 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/split/features/formats.js"
   }
 }
 </script>
@@ -142,7 +142,7 @@ A source that cannot load fails the element (§11): `state="<id>"` reads only a 
 | `src="./data.json"` | `fetch(url)` | `connect-src <origin>` |
 | inner `<script type="module">` (method 5 — the default in every example) | text is extracted and imported through a **`blob:` URL** | **the page nonce on the `<script>` that loads state**, or **`script-src blob:`** |
 
-**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.7.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
+**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
 
 - **The browser evaluates the inner `<script type="module">` too.** Being a child of `<wcs-state>` does not stop it (only a `<template>` does). Its export goes nowhere, so state is unaffected, but with no CSP — or with the nonce on that inner `<script>` as well — **its top-level code runs twice**: once by the browser, once through state's `blob:` import. Under a CSP without a nonce on it, the browser's run is refused and the console shows one violation; state still loads. Either way, **keep side effects out of the top level** (no `fetch`, logging or assignments to globals next to `export default { … }`); do that work in methods or `$connectedCallback`.
 - **`<wcs-guard-handler>` goes through `blob:` too, and has no `src=` form.** The nonce on the `<script>` that loads router admits it the same way. Without a nonce, using guards forces `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source) — control access on the route-content side instead if the policy must stay strict.
@@ -681,7 +681,7 @@ Tooling knows the declaration: `@wcstack/lint` and the VS Code extension validat
 
 ## 11. Other Features
 
-- **Lifecycle**: On the state object: `$connectedCallback` (async allowed, awaited, runs on every reconnection), `$disconnectedCallback` (sync only), `$renderedCallback(paths, indexesListByPath)` (async allowed, not awaited), `$errorCallback(error, info)` (next bullet). On the Web Component side: `async $stateReadyCallback(stateProp)`. **Initialization order**: load the state (on the split auto entry, also the features its `$features` names) → build every binding under the root and apply its initial value, synchronously → resolve `initializePromise` and `getBindingsReady()` → run `$connectedCallback` → resolve `connectedCallbackPromise`. So **`$connectedCallback` may emit a command or read a defined element at once**; an element whose class is not defined yet gets its property / `command.` / `eventToken.` / spread bindings when it is defined (`getBindingsReady()` does not wait for those).
+- **Lifecycle**: On the state object: `$connectedCallback` (async allowed, awaited, runs on every reconnection of the element — not when the page wakes from sleep, resumes, comes back from the back/forward cache or becomes visible: `docs/long-lived-pages.md`), `$disconnectedCallback` (sync only), `$renderedCallback(paths, indexesListByPath)` (async allowed, not awaited), `$errorCallback(error, info)` (next bullet). On the Web Component side: `async $stateReadyCallback(stateProp)`. **Initialization order**: load the state (on the split auto entry, also the features its `$features` names) → build every binding under the root and apply its initial value, synchronously → resolve `initializePromise` and `getBindingsReady()` → run `$connectedCallback` → resolve `connectedCallbackPromise`. So **`$connectedCallback` may emit a command or read a defined element at once**; an element whose class is not defined yet gets its property / `command.` / `eventToken.` / spread bindings when it is defined (`getBindingsReady()` does not wait for those).
 - **`$errorCallback(error, info)` is the in-page error boundary for bindings.** A binding whose application throws (a path getter / filter threw, a structural directive failed) is isolated — the rest of the batch applies, nothing is rolled back — and reported with `console.error` unless the **root** state declares this hook; then the report comes to it instead. `info` = `{ path, bindingType, node }` (`path` as written in `data-wcs`, wildcards intact; `node` is `null` for a list that no `for:` renders); `this` is the writable proxy, so the canonical shape is ``this.loadError = `${path}: ${error.message}` `` and a plain `textContent:` bind. Runs after `$renderedCallback`, not awaited, own exceptions isolated; DevTools still gets `state:binding-apply-error`. A **mounted component**'s `$errorCallback` receives the failures of the component's own bindings; a **volume**'s is not run (`console.warn`). Does **not** cover `$watch` handler failures or exceptions thrown by `$connectedCallback` / `$renderedCallback`.
 - **`$renderedCallback` is binding-driven, not write-driven**: `paths` lists only the paths whose **live DOM bindings** were applied in that drain. A state write with no binding never calls it and never appears in `paths`. So it cannot be used as a headless watcher — that job belongs to `$watch` (§10).
 - **An element that fails to initialize reports once and rejects.** `console.error` names the element and where its state comes from, then the error: `<wcs-state src="./state.js"> failed to initialize.` (`#49`; it names `state=`, `src=`, `mount=` and `bind-component=` when present). Causes: a throwing or removed `$` declaration (`$scan` `#1`, `$streams` `#1601`, …), an invalid `$behavior` (`#44`) or `$features` (`#46`), a source that cannot load (`#13`, `#16`, a CSP block `#42` / `#43`), a DCC or `bind-component` setup error, a second root `<wcs-state>` (`#47`, refused alone), and — 4.0 preview behaviour, still under review — a page-level markup error (§3). Contract:
