@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.8.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
+Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.9.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -39,7 +39,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 **The split auto entry** — one tag, no import map:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/split/auto.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/split/auto.js"></script>
 <wcs-state features="scopes diagnostics">          <!-- the document's root <wcs-state> -->
   <script type="module">
     export default {
@@ -63,9 +63,9 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/split/features/formats.js"
   }
 }
 </script>
@@ -129,7 +129,7 @@ Resolution order: `state` attribute → `src` (.json/.js) → `json` attribute �
 </script>
 ```
 
-`<wcs-state>` attributes: `mount` (graft this state onto the root tree at that path — see below) / `state` / `src` / `json` / `bind-component` (Web Component binding) / `enable-ssr` / `features` (root only, split auto entry — §1). `src` resolves against the **document base URL** — so with `<base href="/ja/">` (the i18n basename pattern), a relative `src="./state.js"` fetches `/ja/state.js` and 404s. **Under a `<base>`, write the URL root-absolute**: `src="/state.js"`.
+`<wcs-state>` attributes: `mount` (graft this state onto the root tree at that path — see below) / `state` / `src` / `json` / `bind-component` (Web Component binding) / `enable-ssr` / `features` (root only, split auto entry — §1). `src` resolves against the **document base URL** — so with `<base href="/ja/">` (the i18n basename pattern), a relative `src="./state.js"` fetches `/ja/state.js` and 404s. With `<base href="/">` — every SPA's — a relative `src="state.js"` already fetches `/state.js` from any route: **write it relative**, so the lint reads the file. Only a `<base>` below the root needs the root-absolute form (`src="/state.js"` under `<base href="/ja/">`), and the lint cannot read a path from `/` (`wcs/state-src-unread`, an info that `--errors-only` hides) — that state goes unchecked.
 
 A source that cannot load fails the element (§11): `state="<id>"` reads only a `<script type="application/json">` with that id and rejects when there is none (`#16`); a `src="*.json"` that cannot be fetched (`#13`, with the HTTP status) or parsed rejects too. `name=` and `path@name` (v1) are gone: `@` in a path is `#32` with the replacement, lint `wcs/named-state-deprecated` (error).
 
@@ -142,7 +142,7 @@ A source that cannot load fails the element (§11): `state="<id>"` reads only a 
 | `src="./data.json"` | `fetch(url)` | `connect-src <origin>` |
 | inner `<script type="module">` (method 5 — the default in every example) | text is extracted and imported through a **`blob:` URL** | **the page nonce on the `<script>` that loads state**, or **`script-src blob:`** |
 
-**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.8.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
+**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
 
 - **The browser evaluates the inner `<script type="module">` too.** Being a child of `<wcs-state>` does not stop it (only a `<template>` does). Its export goes nowhere, so state is unaffected, but with no CSP — or with the nonce on that inner `<script>` as well — **its top-level code runs twice**: once by the browser, once through state's `blob:` import. Under a CSP without a nonce on it, the browser's run is refused and the console shows one violation; state still loads. Either way, **keep side effects out of the top level** (no `fetch`, logging or assignments to globals next to `export default { … }`); do that work in methods or `$connectedCallback`.
 - **`<wcs-guard-handler>` goes through `blob:` too, and has no `src=` form.** The nonce on the `<script>` that loads router admits it the same way. Without a nonce, using guards forces `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source) — control access on the route-content side instead if the policy must stay strict.
@@ -874,6 +874,7 @@ app.unmount();
 
 `mount(html, { root: "shadow", bootstrap: [async () => (await import("@wcstack/router")).bootstrapRouter()] })` scopes bindings to a fresh shadow root and registers additional packages. The bare recipe (no `@wcstack/testing`): `URL.createObjectURL = undefined` in setup (Node cannot import `blob:` URLs, so this reroutes inline `<script type="module">` state through the `data:` loader — without it an inline state never finishes loading), and `await stateEl.connectedCallbackPromise` then `await getBindingsReady(document)` before asserting. Writes go through `stateEl.createStateAsync("writable", async (state) => {...})`. Dispatch synthetic events with `bubbles: true` (`new Event("input", { bubbles: true })`; `fire()` and `el.click()` do) — a non-bubbling `click` / `input` never reaches a delegated `on*:` handler on the root (two-way bindings listen on the element itself).
 
+- **A state in its own file** (`<wcs-state src="./state.js">`, the strict-CSP form): since 4.9 `mount(html, { resolveModule: (url) => new URL("../public" + url.pathname, import.meta.url) })` loads it from the local file — the same option as `renderToString`, each mount importing it anew (build the URL by concatenation: Vite rewrites `new URL("<literal>", import.meta.url)`). Without it the import fails (`http:` under happy-dom). An inline state cannot `import` a relative module under Node (it is evaluated from a `data:` URL) — move it to a file. A `<wcs-state>` with nothing to load (no `state` / `src` / `json` / inline script) waits for `setInitialState()`, which a test cannot call before `mount()` returns: since 4.9 `mount()` rejects it at once (up to 4.8 the test timed out silently).
 - **A state that fails to initialize fails the test**: `connectedCallbackPromise` rejects with the error, so `mount()`, `renderToString()` and `getBindingsReady(root)` reject with the cause (§11).
 - **Snapshot**: `expect(await renderToString(html)).toMatchSnapshot()` — `renderToString` from `@wcstack/server`.
 - **Bare Node (no vitest)**: `const restore = installGlobals(new Window({ url: "http://localhost/" }))` from `@wcstack/server`, then **dynamic-import `@wcstack/state` after it** (a static import at the top of the file registers elements happy-dom cannot construct), run the same steps, `restore()`.
