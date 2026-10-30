@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.9.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
+Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.10.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.10.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -39,7 +39,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 **The split auto entry** — one tag, no import map:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/split/auto.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.10.0/dist/split/auto.js"></script>
 <wcs-state features="scopes diagnostics">          <!-- the document's root <wcs-state> -->
   <script type="module">
     export default {
@@ -63,9 +63,9 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.10.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.10.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.10.0/dist/split/features/formats.js"
   }
 }
 </script>
@@ -142,7 +142,7 @@ A source that cannot load fails the element (§11): `state="<id>"` reads only a 
 | `src="./data.json"` | `fetch(url)` | `connect-src <origin>` |
 | inner `<script type="module">` (method 5 — the default in every example) | text is extracted and imported through a **`blob:` URL** | **the page nonce on the `<script>` that loads state**, or **`script-src blob:`** |
 
-**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.9.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
+**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.10.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
 
 - **The browser evaluates the inner `<script type="module">` too.** Being a child of `<wcs-state>` does not stop it (only a `<template>` does). Its export goes nowhere, so state is unaffected, but with no CSP — or with the nonce on that inner `<script>` as well — **its top-level code runs twice**: once by the browser, once through state's `blob:` import. Under a CSP without a nonce on it, the browser's run is refused and the console shows one violation; state still loads. Either way, **keep side effects out of the top level** (no `fetch`, logging or assignments to globals next to `export default { … }`); do that work in methods or `$connectedCallback`.
 - **`<wcs-guard-handler>` goes through `blob:` too, and has no `src=` form.** The nonce on the `<script>` that loads router admits it the same way. Without a nonce, using guards forces `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source) — control access on the route-content side instead if the policy must stay strict.
@@ -179,7 +179,7 @@ There is **one state tree per rootNode** (document or shadowRoot). To split stat
 | An injection on the volume element (`data-wcs="state.taxRate: settings.taxRate"`) | **refused** (not grafted): read both paths in a root getter — `get cartTotalWithTax() { return this["cart.subtotal"] * (1 + this["settings.taxRate"]); }` |
 
 - **Declare `$watch` / `$listKeys` / `$renderedCallback` on the root state with full paths** (`$watch: { "cart.total"(cur) { … } }`). Inside the root's handlers `this` is the root state. The root's `$renderedCallback(paths, indexes)` receives the paths of the whole tree (`cart.items.*.name`) — filter by prefix: `paths.filter((p) => p.startsWith("cart."))`.
-- A refused volume still resolves its `connectedCallbackPromise`; everything under its mount path reads `undefined`. Lint: `wcs/volume-declaration`, `wcs/behavior-invalid`, `wcs/features-invalid`. The lint cannot read a volume loaded with `src=`, so a root `$watch` key or a binding under that mount path gets `wcs/watch-path-missing` / `wcs/binding-path-missing` warnings although it works.
+- A refused volume still resolves its `connectedCallbackPromise`; everything under its mount path reads `undefined`. Lint: `wcs/volume-declaration`, `wcs/behavior-invalid`, `wcs/features-invalid`. The lint reads a volume's `src=` like a root's (relative to the page; a path from `/` with `--root`, 4.10) — since 4.10 keys written as names too (`export default { lang, t }` over imported constants), so a dictionary volume's `i18n.t.*` bindings are checked; a key whose value is computed at run time leaves the paths under it unchecked (`wcs/path-dynamic-unknown`, info).
 - The **root `<wcs-state>` is required** and may be empty (`<wcs-state></wcs-state>`). Volumes with no root are a loud error. A second root on one root node is refused alone (`#47`; lint `wcs/second-root`).
 - **Load order does not matter.** A volume connected before the root is grafted when the root registers; reads under a not-yet-loaded volume return `undefined` and are *not* reported as missing paths. If the root fails to initialize, volumes waiting for it settle with a report of their own — final: fix the root and reload. A volume that settles without grafting releases its mount slot, so a replacement element on the same path grafts.
 - **`setInitialState()` on a loaded volume element throws** — the graft copies the volume's data into the root tree once. Write the paths under the mount path on the **root** state instead.
@@ -492,11 +492,11 @@ this.user.name = "Bob";      // ❌ runtime ignores it; lint wcs/nested-assign (
 
 The comparison, arithmetic (except the number formatting), conversion and truthy/default families are the core set; the formatting filters come from `features/formats` (`/auto` and the full entry install both — §1). There is no `substr` (write `slice(start, start + length)`; `slice` takes the end index) and none of the 3.x short names (`uc`, `inc`, `fix`, `pad`, `null`, … — §16): an unknown name throws `[wcs/filter-unknown]` #501, and for a removed 3.x name the diagnostics feature names the replacement instead of a did-you-mean.
 
-With arguments: `gt(10)`, `slice(0,10)`, `padStart(5)` or `padStart(5,'0')` — quote the pad character, since an unquoted `0` is a typed *number* and lint reports `wcs/filter-arg-type` — `locale(ja-JP)`, `date(ja-JP)`, `date(en-US,medium)` → "Oct 13, 2026" (4.2: a style second — `full` / `long` / `medium` / `short`; a style alone keeps the page locale, `date(medium)`), `currency(JPY)` / `currency(USD,en-US)` (4.2: an ISO 4217 code, checked when the bindings are planned), `ymd(/)`, `eq('admin')` (quotes allowed, bare allowed, comma-separated). Chaining: `price|mul(1.1)|round(2)|locale(ja-JP)`. Do transformations the built-ins cannot express in a getter.
+With arguments: `gt(10)`, `slice(0,10)`, `padStart(5)` or `padStart(5,'0')` — quote the pad character, since an unquoted `0` is a typed *number* and lint reports `wcs/filter-arg-type` — `locale(ja-JP)`, `date(ja-JP)`, `date(en-US,medium)` → "Oct 13, 2026" (4.2: a style second — `full` / `long` / `medium` / `short`; a style alone keeps the page locale, `date(medium)`), `time(,short,Asia/Tokyo)` (4.10: an IANA time zone third — an empty argument keeps its default, and a lone zone with a `/` or `UTC` keeps both, `datetime(UTC)`; a zone Intl does not take fails when the bindings are planned, `#54`), `currency(JPY)` / `currency(USD,en-US)` (4.2: an ISO 4217 code, checked when the bindings are planned), `ymd(/)`, `eq('admin')` (quotes allowed, bare allowed, comma-separated). Chaining: `price|mul(1.1)|round(2)|locale(ja-JP)`. Do transformations the built-ins cannot express in a getter.
 
 **Filter arguments are typed.** Unquoted `true` / `false` / `null` / numbers are typed literals, quoted arguments are strings: `done|eq(true)` matches `true`, `eq('true')` does not, `eq(null)` matches `null`; a non-string literal compares as itself (a number never equals `null` or `true`), and a form value `"1"` still matches `eq(1)`. `defaults(v)` returns the typed value (`defaults(0)` → `0`; `defaults('0')` for the text). `truthy` / `falsy` / `defaults` use JavaScript truthiness (`0n` is falsy). Still prefer binding a boolean directly (`class.done: done`, `hidden: done|not`). `coalesce(v)` replaces only `null` / `undefined` while `defaults(v)` replaces every falsy value (`0`, `false`, `""` included) — pick `coalesce` for a count that may legitimately be `0`. `add` / `sub` require their argument.
 
-**Arity is checked** (`[wcs/filter-arity]`, the bounds lint uses): `join(a,b)` throws "accepts at most 1 argument(s)"; `locale` / `toFixed` / `round` / `floor` / `ceil` / `percent` / `join` / `ymd` / `hms` take 0–1, `date` / `time` / `datetime` 0–2, `slice` / `padStart` / `padEnd` / `truncate` / `currency` 1–2, `clamp` 2. `Object.prototype` names (`|toString`, `|valueOf`) are `wcs/filter-unknown`.
+**Arity is checked** (`[wcs/filter-arity]`, the bounds lint uses): `join(a,b)` throws "accepts at most 1 argument(s)"; `locale` / `toFixed` / `round` / `floor` / `ceil` / `percent` / `join` / `ymd` / `hms` take 0–1, `date` / `time` / `datetime` 0–3 (0–2 up to 4.9), `slice` / `padStart` / `padEnd` / `truncate` / `currency` 1–2, `clamp` 2. `Object.prototype` names (`|toString`, `|valueOf`) are `wcs/filter-unknown`.
 
 Contracts worth knowing:
 
@@ -509,7 +509,7 @@ Contracts worth knowing:
 - `padStart`'s default pad character is `0` while `padEnd`'s is a space (deliberately not symmetric — `padStart` exists for zero-padding).
 - Whitespace inside quotes is literal: `padStart(5, ' ')` pads with a space and `join(' / ')` works.
 
-**The default locale is `<html lang>`, read when `@wcstack/state` is evaluated**, falling back to `'en'`. The five locale-dependent filters — `locale`, `currency`, `date`, `time`, `datetime` — use it. Always set `<html lang>` in the markup; an explicit `bootstrapState({ locale })` still wins; a tag `Intl` does not take is reported (`#48`) and `'en'` is used. **Changing the locale later re-renders nothing** (it is a page setting, not state). Per-call overrides (`price|locale(fr-FR)`) are fixed at bind time. For pages that switch language without reloading, translations belong on a path, not in a filter (`docs/i18n-design.md`).
+**The default locale is `<html lang>`, read when `@wcstack/state` is evaluated**, falling back to `'en'`. The five locale-dependent filters — `locale`, `currency`, `date`, `time`, `datetime` — use it. Always set `<html lang>` in the markup; an explicit `bootstrapState({ locale })` still wins; a tag `Intl` does not take is reported (`#48`) and `'en'` is used. **Changing the locale later re-renders nothing** (it is a page setting, not state). Per-call overrides (`price|locale(fr-FR)`) are fixed at bind time. For pages that switch language without reloading, translations belong on a path, not in a filter (`docs/i18n-design.md`). **The locale is not the time zone**: `date` / `time` / `datetime` format in the runtime's zone — the reader's in a browser, the server's under SSR — whatever `<html lang>` says; a time that belongs to a place takes its zone as the third argument (4.10, `time(,short,Asia/Tokyo)`). `ymd` / `hms` take no zone and read the runtime's.
 
 ## 8. Event Handling
 
@@ -665,7 +665,7 @@ export default {
 - **Rows are headless**: a wildcard row watch needs neither a `for` binding nor `$listKeys` — the watch keeps its lists synced itself. A whole-array assignment fires only the rows that **entered** the list (`prev` undefined); a row kept by identity did not change and does not fire; an in-place mutation announced with the same array, a copy, or `$postUpdate("items")` fires nothing (getters still read the new values). After a `fetch().json()` refresh every row is new, so every row fires — declare `$listKeys` to turn that into per-field writes that fire only what changed, with a real `prev`.
 - **Watching a getter makes it eager** — wildcard getters included: evaluated at connect and again at the end of every batch touching its dependencies (`prev` = previous evaluation). A change that reaches the getter fires the watch whether or not its value changed (no condition of its own); a wildcard getter fires per row the change reached. You pay that evaluation per batch, and exceptions inside the getter surface through the watch. A row getter on a row a list assignment or re-sort kept fires only when its value changed — unless the same batch changed something it read outside its row (`now`, `items.length`, a root getter over them).
 - **A numeric-index key** (`"items.0.v"`) fires only when the value at that index changes.
-- **Ordering** at the end of a drain is fixed: bindings applied → `$renderedCallback` → binding failures (`$errorCallback`, or the console) → `$watch` handlers (declaration order; ascending indexes between rows of one path) → `$stream` restarts. A `<wcs-view-transition>` accepting the `state` participant puts binding application — and with it `$renderedCallback` — on a **frame**, while `$watch` and the `$stream` restart stay on the original microtask, so the order becomes `$watch` → `$stream` restart → `$renderedCallback` while that tag is present (`for="router"` on the tag keeps state's timing untouched).
+- **Ordering** at the end of a drain is fixed: bindings applied → `$renderedCallback` → binding failures (`$errorCallback`, or the console) → `$watch` handlers (declaration order; ascending indexes between rows of one path) → `$stream` restarts. A `<wcs-view-transition>` accepting the `state` participant puts the application of an update that changes structure (rows, an `if` branch) — and with it `$renderedCallback` — on a **frame**; since 4.10 `$watch` and the `$stream` restart wait for it, so the order is the same, a frame later, and what they write (a list a `$watch` copies into state) is applied in the same transition. Up to 4.9 they stayed on the original microtask and ran first (`$watch` → `$stream` restart → `$renderedCallback`): a login `$watch` that navigated ran before `<wcs-storage>` had saved the session the route guard reads. `for="router"` on the tag keeps state's updates on the microtask.
 
 Key rules (each of these fails silently or surprisingly if ignored):
 
@@ -1040,7 +1040,7 @@ export default {
 - **Write only when the fold produced something new**: a plain write of an unchanged object passes the same-value guard (it skips primitives only) and re-fires every `$watch` and binding on it.
 - If the state already has a `$watch` / `$on` handler for that path or token, merge the fold into it: in an object literal a later key silently replaces the earlier one.
 - Keep the accumulation bounded (`slice(-49)`, a count) — there is no backpressure.
-- **Order**: the handler's write lands in the next batch; a `$watch` on the output (`feed(feed) { … }`, e.g. re-arming a sentinel) fires at the end of that batch, after its rows have rendered (without a `<wcs-view-transition>` accepting `state`; with one, bindings apply on a frame and the `$watch` runs first — §10). A reset written from a `$watch` happens at the end of the batch, not at the moment of the triggering write.
+- **Order**: the handler's write lands in the next batch; a `$watch` on the output (`feed(feed) { … }`, e.g. re-arming a sentinel) fires at the end of that batch, after its rows have rendered (with a `<wcs-view-transition>` accepting `state`, one frame later — §10; up to 4.9 the `$watch` ran first there). A reset written from a `$watch` happens at the end of the batch, not at the moment of the triggering write.
 - The output is plain state: a re-set (`setInitialState`) replaces it like any other key, and SSR never runs the watch.
 
 Working demo: `examples/state-intersect-scroll/` (its feed).
