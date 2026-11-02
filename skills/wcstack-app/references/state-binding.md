@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.13.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
+Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.14.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.13.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.14.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -39,7 +39,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 **The split auto entry** — one tag, no import map:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.13.0/dist/split/auto.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.14.0/dist/split/auto.js"></script>
 <wcs-state features="scopes diagnostics">          <!-- the document's root <wcs-state> -->
   <script type="module">
     export default {
@@ -63,9 +63,9 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.13.0/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.13.0/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.13.0/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.14.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.14.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.14.0/dist/split/features/formats.js"
   }
 }
 </script>
@@ -142,7 +142,7 @@ A source that cannot load fails the element (§11): `state="<id>"` reads only a 
 | `src="./data.json"` | `fetch(url)` | `connect-src <origin>` |
 | inner `<script type="module">` (method 5 — the default in every example) | text is extracted and imported through a **`blob:` URL** | **the page nonce on the `<script>` that loads state**, or **`script-src blob:`** |
 
-**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.13.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
+**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.14.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
 
 - **The browser evaluates the inner `<script type="module">` too.** Being a child of `<wcs-state>` does not stop it (only a `<template>` does). Its export goes nowhere, so state is unaffected, but with no CSP — or with the nonce on that inner `<script>` as well — **its top-level code runs twice**: once by the browser, once through state's `blob:` import. Under a CSP without a nonce on it, the browser's run is refused and the console shows one violation; state still loads. Either way, **keep side effects out of the top level** (no `fetch`, logging or assignments to globals next to `export default { … }`); do that work in methods or `$connectedCallback`.
 - **`<wcs-guard-handler>` goes through `blob:` too, and has no `src=` form.** The nonce on the `<script>` that loads router admits it the same way. Without a nonce, using guards forces `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source) — control access on the route-content side instead if the policy must stay strict.
@@ -301,6 +301,7 @@ In addition, any DOM property name can be used (e.g. `disabled: createFetch.load
 - **`data-wcs` is removed from the elements cloned for rows (and `if:` branches)** — CSS or test selectors such as `[data-wcs*="items"]` do not match them. Use a class or a `data-*` attribute of your own.
 - **A `for:` over a getter.** When the getter returns the list itself (`get shown() { return this.todos; }`), writes through its rows — a two-way `checked: .done`, `this["shown.0.done"] = true` — reach the source list, its readers and `$getAll`, and other `for:`s over it. When it returns a **filtered copy**, the row objects are reachable from two lists, and a write below one row does not reach the other list's row bindings and row getters (known 4.0 limitation, #365). For the TodoMVC shape, toggle from a handler that reassigns the source list with a new row object — `toggle(e, i) { const id = this.shown[i].id; this.todos = this.todos.map((t) => t.id === id ? { ...t, done: !t.done } : t); }` (`i` is the position in `shown`) — so the filter getter, the count and every `for:` recompute from the new array.
 - **One object at two positions** (`items: [o, o]`) has the same limitation: a write through `items.0.name` does not reach `items.1`'s bindings; plain reads, root getters and `$getAll` see the new value. Give each position its own object.
+- **A row a reorder moves keeps its focus (4.14)** — and its iframe's page and running CSS animations — where the browser has `moveBefore()` (Chromium 133+, Firefox 144+): sorting or reversing the list while an input in a row has focus does not drop it, and the input gets no `blur`. Safari has no `moveBefore()`; there a moved row still loses its focus (a row the list leaves in place keeps it everywhere). A custom element in a moved row still gets `disconnectedCallback` / `connectedCallback`, unless its class defines `connectedMoveCallback`.
 
 ### `$listKeys` — identity across a refetch
 
