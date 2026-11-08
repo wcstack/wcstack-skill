@@ -1,6 +1,6 @@
 # wcstack I/O Node Catalog + signals Quick Reference
 
-Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, `docs/signals-definition-timing.md`, `docs/architecture-hardening/12-wc-bindable-observable-inventory.md`, `docs/audio-tag-design.md`, `docs/midi-tag-design.md`, `docs/timing-and-firing-contract.md`, and `examples/signals-live-search`. Tag surface verified at v4.18.0: **53 tags**, attribute spellings, properties, commands and the timing notes below source-verified. **4.0 changes no I/O node tag, property or command.** Two things an author sees: every package's `bootstrapXxx(config)` **throws** on an option it does not have, a value of another type, an unknown `tagNames` key or a non-string tag name (`[@wcstack/fetch] bootstrapFetch: "tagName" is not one of its options, or not of the option's type.` — `/auto` passes none, so a CDN page is unaffected), and `@wcstack/state` 4.0 delegates `on*:` handlers of bubbling events to the root (`state-binding.md` §8) — I/O-node wiring through property / `command.` / `eventToken.` / spread bindings is unchanged.
+Sources: each package's README (ja preferred) plus the `static wcBindable` / `static observedAttributes` declarations in src, `packages/signals/README.ja.md`, `docs/signals-definition-timing.md`, `docs/architecture-hardening/12-wc-bindable-observable-inventory.md`, `docs/audio-tag-design.md`, `docs/midi-tag-design.md`, `docs/timing-and-firing-contract.md`, and `examples/signals-live-search`. Tag surface verified at v4.19.0: **53 tags**, attribute spellings, properties, commands and the timing notes below source-verified. **4.0 changes no I/O node tag, property or command.** Two things an author sees: every package's `bootstrapXxx(config)` **throws** on an option it does not have, a value of another type, an unknown `tagNames` key or a non-string tag name (`[@wcstack/fetch] bootstrapFetch: "tagName" is not one of its options, or not of the option's type.` — `/auto` passes none, so a CDN page is unaffected), and `@wcstack/state` 4.0 delegates `on*:` handlers of bubbling events to the root (`state-binding.md` §8) — I/O-node wiring through property / `command.` / `eventToken.` / spread bindings is unchanged.
 
 History, for reading older pages: `mountNode` and the normative headless Cores arrived in 1.23, observation semantics (§0) in 1.24, `@wcstack/audio` / `@wcstack/midi` in 1.25, scoped-registry support in 1.31, `<wcs-view-transition>` in 1.32, `<wcs-media-query>` in 2.2; no tag, property or command name has changed since it was added. Two wiring shapes needed a minimum `@wcstack/state` on 3.x — the dotted property form (`.once:`) and `class.` / `attr.` / `style.` on a wc-bindable tag from 3.3, I/O nodes inside `for:` rows from 3.4 — and all of them work in 4.0.
 
@@ -295,7 +295,7 @@ Bind only the numeric params (§1.1) — writing a structural attribute from sta
 { "imports": { "@wcstack/signals/dom": "https://esm.run/@wcstack/signals/dom" } }
 </script>
 <script type="module">
-  import { signal, computed, effect, selector, h, render, For, bindNode, mountNode } from "@wcstack/signals/dom";
+  import { signal, computed, effect, selector, delegateEvents, h, render, For, bindNode, mountNode } from "@wcstack/signals/dom";
 </script>
 ```
 
@@ -330,6 +330,8 @@ h("ul", null, Index(nums, (n) => h("li", null, () => String(n() * 2))));
 A plain reactive child (`() => items.map(render)`) regenerates everything on every change, so always use For/Index for lists. Key default is `===`; duplicate keys throw. `each` returns a single Node.
 
 **The selected row — `selector`** (4.18). `class: () => (selected.get() === row.id ? "active" : "")` re-runs every row on each change of the selection. `const isSelected = selector(selected)` — created under an owner (`createRoot` / a `SignalsElement` render) — gives `isSelected(key)`, and a change re-runs only the row it left and the row it took: `class: () => (isSelected(row.id) ? "active" : "")`. Keys compare as `Map` keys; to select an object, select its id: `selector(computed(() => selectedItem.get()?.id))`.
+
+**Event delegation — `delegateEvents`** (4.19, opt-in). For a big list, call `delegateEvents(["click"])` once before building the view: `h()`'s `onClick` then waits on its element without a listener, and one listener on the document hands each click along its path (`currentTarget` and `this` are the element, `stopPropagation()` stops the outer handlers). Write the row's handler as usual — never one handler on the `<tbody>` that inspects `event.target`. Off by default because a delegated handler runs after the listeners of the elements in between, never for an element outside the document (a test that calls `el.click()` on an element it did not attach sees no call), and only for events that bubble and are composed (`click`, `input`, `keydown`, pointer / mouse, `focusin` / `focusout`); `focus`, `change`, `submit`, touch, wheel and custom events throw. Call it before the elements are made; pass the root for a closed shadow root.
 
 ### Async — `resource` / `streamResource`
 
