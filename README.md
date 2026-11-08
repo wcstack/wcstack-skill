@@ -19,8 +19,10 @@ skills/wcstack-app/
     │                                 #   and what to rewrite in 3.x code
     ├── router-and-scaffold.md        # SPA routing, layouts, autoloader,
     │                                 #   index.html skeleton + SPA server fallback
-    └── io-node-catalog.md            # wcBindable catalog of 52 wcs-* tags
-                                      #   + signals quick reference
+    ├── io-node-catalog.md            # wcBindable catalog of 52 wcs-* tags
+    │                                 #   + signals quick reference
+    └── islands.md                    # a page wcstack does not own: htmx / Turbo,
+                                      #   inserted markup, history caches, widgets
 ```
 
 The skill uses progressive disclosure: `SKILL.md` stays small (workflow + invariants) and the references load only when the matching phase is reached.
@@ -43,7 +45,7 @@ Copy `skills/wcstack-app/` into:
 
 ## Versioning
 
-The plugin version tracks the wcstack release the content was last verified against (currently **4.19.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
+The plugin version tracks the wcstack release the content was last verified against (currently **4.20.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
 
 Pages that must stay on wcstack 3.x pin the major in their CDN URLs (`https://esm.run/@wcstack/state@3/auto`) and use a skill release verified against 3.5.4 (the `v3.5.4` tag of this repository).
 
