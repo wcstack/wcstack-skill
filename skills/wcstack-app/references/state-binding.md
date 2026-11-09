@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.19.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
+Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.20.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.19.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.20.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -39,7 +39,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 **The split auto entry** — one tag, no import map:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.19.0/dist/split/auto.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.20.0/dist/split/auto.js"></script>
 <wcs-state features="scopes diagnostics">          <!-- the document's root <wcs-state> -->
   <script type="module">
     export default {
@@ -63,9 +63,9 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.19.0/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.19.0/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.19.0/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.20.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.20.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.20.0/dist/split/features/formats.js"
   }
 }
 </script>
@@ -111,7 +111,8 @@ Resolution order: `state` attribute → `src` (.json/.js) → `json` attribute �
 <!-- 3. External JSON -->
 <wcs-state src="./data.json"></wcs-state>
 
-<!-- 4. External JS module (export default {...}) -->
+<!-- 4. External JS module (export default {...}). Since 4.20 each <wcs-state> naming it gets its own state
+     (a DCC's instances, a page whose body htmx replaced); up to 4.19 they shared one object -->
 <wcs-state src="./state.js"></wcs-state>
 
 <!-- 5. Inline script (most common. export default with type="module") -->
@@ -142,7 +143,7 @@ A source that cannot load fails the element (§11): `state="<id>"` reads only a 
 | `src="./data.json"` | `fetch(url)` | `connect-src <origin>` |
 | inner `<script type="module">` (method 5 — the default in every example) | text is extracted and imported through a **`blob:` URL** | **the page nonce on the `<script>` that loads state**, or **`script-src blob:`** |
 
-**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.19.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
+**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.20.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
 
 - **The browser evaluates the inner `<script type="module">` too.** Being a child of `<wcs-state>` does not stop it (only a `<template>` does). Its export goes nowhere, so state is unaffected, but with no CSP — or with the nonce on that inner `<script>` as well — **its top-level code runs twice**: once by the browser, once through state's `blob:` import. Under a CSP without a nonce on it, the browser's run is refused and the console shows one violation; state still loads. Either way, **keep side effects out of the top level** (no `fetch`, logging or assignments to globals next to `export default { … }`); do that work in methods or `$connectedCallback`.
 - **`<wcs-guard-handler>` goes through `blob:` too, and has no `src=` form.** The nonce on the `<script>` that loads router admits it the same way. Without a nonce, using guards forces `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source) — control access on the route-content side instead if the policy must stay strict.
@@ -217,7 +218,7 @@ property[#modifier[,modifier...]][|input filter...]: path[|output filter...]
   | A path over 512 segments | Real paths are under ten |
   | A `*` in a row that ranges over another list than the enclosing `for:` (`{{ b.*.y }}` inside `for: a`, `[wcs/wildcard-rank]` #1403); `state: .` or a `.`-path outside any `for:` (#1402) | Read the other list's row in a getter with `$resolve(path, indexes)` |
 - **A modifier never changes the kind of binding:** `radio#ro:` / `checkbox#ro:` stay radio / checkbox bindings.
-- **Empty values:** display surfaces — `textContent` / `innerText` / `innerHTML`, `{{ }}` and comment bindings, `attr.*`, `style.*`, `class.*` — treat `undefined` and `null` alike: the text is emptied, the attribute or style removed, the class taken off. Element inputs (every other property, spread) skip `undefined` (the element keeps its own default) and clear on `null`. The formatting filters `upper` / `lower` / `capitalize` / `trim` / `slice` / `padStart` / `padEnd` / `repeat` / `reverse` / `truncate` / `unit` pass `undefined` / `null` through. The filters for which an absent value *is* the input (`defaults` / `coalesce` / `nullIfEmpty` / `boolean` / `truthy` / `falsy` / `not` / `eq` / `ne`) read it as such; the conversions and the number / array families do not pass it through — a filter that requires a number, a date or an array throws on a value of another type (`#28`–`#30`); since 4.7 the date family (`date` `time` `datetime` `ymd` `hms`) passes `undefined` / `null` through, so a date that arrives later renders nothing until then, confined to that binding and routed to `$errorCallback`.
+- **Empty values:** display surfaces — `textContent` / `innerText` / `innerHTML`, `{{ }}` and comment bindings, `attr.*`, `style.*`, `class.*` — treat `undefined` and `null` alike: the text is emptied, the attribute or style removed, the class taken off. Element inputs (every other property, spread) skip `undefined` (the element keeps its own default) and clear on `null`. The formatting filters `upper` / `lower` / `capitalize` / `trim` / `slice` / `padStart` / `padEnd` / `repeat` / `reverse` / `truncate` / `unit` pass `undefined` / `null` through. The filters for which an absent value *is* the input (`defaults` / `coalesce` / `nullIfEmpty` / `boolean` / `truthy` / `falsy` / `not` / `eq` / `ne`) read it as such; the conversions and the number / array families do not pass it through — a filter that requires a number, a date or an array throws on a value of another type (`#28`–`#30`); since 4.7 the date family (`date` `time` `datetime` `ymd` `hms`) passes `undefined` / `null` through, so a date that arrives later renders nothing until then, and since 4.20 so does the number display family (`toFixed` `round` `floor` `ceil` `percent` `locale` `currency`) — a total that arrives later needs no `coalesce` in front; confined to that binding and routed to `$errorCallback`.
 
 ### What is bound, and in which order
 
