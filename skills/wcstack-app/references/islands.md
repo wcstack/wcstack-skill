@@ -18,15 +18,15 @@ The state walks its root once. Markup inserted later — an htmx swap into `#res
 
 ```js
 const binder = () => globalThis[Symbol.for("wcstack.binder")];
-const handed = new WeakSet();
+const REGIONS = "#results, #booking";   // the regions the page's htmx swaps into
 
 // htmx: htmx:load for each element a swap inserted; htmx:beforeCleanupElement for each it removes
 document.addEventListener("htmx:load", (e) => {
-  handed.add(e.detail.elt);
-  binder()?.bind(e.detail.elt);
+  if (e.detail.elt.parentElement?.closest(REGIONS)) binder()?.bind(e.detail.elt);
 });
 document.addEventListener("htmx:beforeCleanupElement", (e) => {
-  if (handed.has(e.detail.elt)) binder()?.release?.(e.detail.elt);
+  // a region's own children — what the server rendered there first too, which the page walk bound
+  if (e.detail.elt.parentElement?.matches(REGIONS)) binder()?.release?.(e.detail.elt);
 });
 
 // Turbo frames: the frame element stays and its children are replaced
@@ -40,7 +40,7 @@ document.addEventListener("turbo:frame-render", (e) => {
 
 - **Hand over the new nodes, never their container.** An element the walk visited is left alone, with everything in it: `bind(#results)` after a swap into `#results` binds nothing.
 - **A `for:` / `if:` template at the top of a fragment** is not rendered when handed over (`#204`): put it inside an element.
-- **`release(subtree)`** (4.20, binder protocol version 2, the `release` add-on — in `/auto` and `.`; a `/core` page installs `@wcstack/state/features/release`) lets go of a subtree thrown away for good. Without it, every set of results ever shown stays bound and every change writes into all of them. Released nodes are not bound again — hand over new markup. Never release content that comes back.
+- **`release(subtree)`** (4.20, binder protocol version 2, the `release` add-on — in `/auto` and `.`; a `/core` page installs `@wcstack/state/features/release`) lets go of a subtree thrown away for good — whatever is bound under it, handed over or bound by the page walk (the server's first results). Without it, every set of results ever shown stays bound and every change writes into all of them. Released nodes are not bound again — hand over new markup. Never release content that comes back.
 - **The binder is `undefined` until `@wcstack/state` has loaded**; markup inserted before that is bound by the first walk.
 - **htmx attributes inside a `for:` / `if:` template** do nothing (rows are cloned after htmx processed the page), and a bound `attr.hx-get:` is not seen either. Keep `hx-*` outside wcstack templates.
 - **htmx acts during the event's dispatch; bindings apply a microtask later.** Decide in htmx's own events (`htmx:confirm`), not on an attribute a binding sets.
