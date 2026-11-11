@@ -1,6 +1,6 @@
 # wcstack on a page it does not own — islands and widgets
 
-Sources: `docs/islands.md` (+ `.ja.md`), `packages/state/README.md` "Inserting markup yourself" and "Mounting Additional State", `docs/binder-protocol-design.md` §10, `docs/scoped-custom-element-registries.md`, `packages/state/src/features/release.ts`, `packages/state/src/features/diagnostics.ts`, and the `community-hall` seam app in `docs/seam-apps.md` (a CMS site with htmx 2, five islands, a widget on a Turbo site that runs wcstack 4.17). All verified against the actual files at v4.21.0; the htmx and Turbo frame snippets below were run in Chromium.
+Sources: `docs/islands.md` (+ `.ja.md`), `packages/state/README.md` "Inserting markup yourself" and "Mounting Additional State", `docs/binder-protocol-design.md` §10, `docs/scoped-custom-element-registries.md`, `packages/state/src/features/release.ts`, `packages/state/src/features/diagnostics.ts`, and the `community-hall` seam app in `docs/seam-apps.md` (a CMS site with htmx 2, five islands, a widget on a Turbo site that runs wcstack 4.17). All verified against the actual files at v4.22.0; the htmx and Turbo frame snippets below were run in Chromium.
 
 Read this before adding wcstack to a server-rendered site whose pages come from another template language and are swapped by htmx or Turbo, or before writing a widget that other sites paste into their pages. Everything else in this skill still applies inside the island.
 
@@ -61,8 +61,8 @@ htmx's history snapshot and Turbo's snapshot cache restore a page **as drawn**: 
 A page defines `<wcs-state>` once: the first copy of `@wcstack/state` it evaluates defines it, a second copy does nothing (`[wcs/package-twice]`). A widget that loads `/auto` on a page that runs wcstack therefore runs on the page's copy, of whatever version. Give the widget a shadow root with a scoped registry and define wcstack's tags into it — every package's `bootstrapXxx(config, registry)` takes the registry:
 
 ```js
-import { bootstrapState } from "https://esm.run/@wcstack/state@4.21.0";
-import { bootstrapSse } from "https://esm.run/@wcstack/sse@4.21.0";
+import { bootstrapState } from "https://esm.run/@wcstack/state@4.22.0";
+import { bootstrapSse } from "https://esm.run/@wcstack/sse@4.22.0";
 
 let registry = null;
 function widgetRegistry() {

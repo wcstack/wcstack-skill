@@ -1,6 +1,6 @@
 # @wcstack/state Reference
 
-Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.21.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
+Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/migration-v4.md`, `docs/state-errors.md` (message numbers) and the 4.0.0 CHANGELOG entry — plus what 4.0 keeps from the 3.x documentation: `packages/state/README.ja.md`, `packages/state/examples/*`, `packages/fetch/examples/users-crud`, `docs/csp.md` / `docs/sri.md` / `docs/state-list-key-design.md` / `docs/state-watch-hook-design.md` / `docs/timing-and-firing-contract.md`. All verified against real code at v4.22.0, and the 4.0 rules against the 4.0 engine source. **The rules are 4.0's.** A form from 3.x code and what replaced it: §16.
 
 ## 1. CDN Loading
 
@@ -21,7 +21,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.21.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.22.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -39,7 +39,7 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 **The split auto entry** — one tag, no import map:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.21.0/dist/split/auto.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.22.0/dist/split/auto.js"></script>
 <wcs-state features="scopes diagnostics">          <!-- the document's root <wcs-state> -->
   <script type="module">
     export default {
@@ -63,9 +63,9 @@ Sources: the 4.0 engine — wcstack `packages/state/src` and its README, `docs/m
 <script type="importmap">
 {
   "imports": {
-    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.21.0/dist/split/core.js",
-    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.21.0/dist/split/features/temporal.js",
-    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.21.0/dist/split/features/formats.js"
+    "@wcstack/state/core": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.22.0/dist/split/core.js",
+    "@wcstack/state/features/temporal": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.22.0/dist/split/features/temporal.js",
+    "@wcstack/state/features/formats": "https://cdn.jsdelivr.net/npm/@wcstack/state@4.22.0/dist/split/features/formats.js"
   }
 }
 </script>
@@ -143,7 +143,7 @@ A source that cannot load fails the element (§11): `state="<id>"` reads only a 
 | `src="./data.json"` | `fetch(url)` | `connect-src <origin>` |
 | inner `<script type="module">` (method 5 — the default in every example) | text is extracted and imported through a **`blob:` URL** | **the page nonce on the `<script>` that loads state**, or **`script-src blob:`** |
 
-**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.21.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
+**The page's nonce rescues method 5 — on the `<script>` that loads state, not on the inner one.** A module's `import()` inherits the nonce of the `<script>` that loaded that module, so `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/state@4.22.0/dist/auto.min.js">` admits the `blob:` import under a policy without `blob:` (the browser's rule, not a wcstack feature — checked on Chromium, Firefox and WebKit). A hash cannot do this: a `blob:` module is fetched as an external script, so no inline hash ever matches it. Where no nonce can be issued (static hosting), it is `src="./state.js"` or `script-src blob:`, and opening `script-src blob:` means "allow all dynamically generated scripts", which gives away most of the reason for having a CSP. **Under a strict CSP, `src="./state.js"` stays the preferred form** — it needs neither `blob:` nor the nonce hand-off, and the double run below does not happen. Other consequences worth knowing before you write the policy:
 
 - **The browser evaluates the inner `<script type="module">` too.** Being a child of `<wcs-state>` does not stop it (only a `<template>` does). Its export goes nowhere, so state is unaffected, but with no CSP — or with the nonce on that inner `<script>` as well — **its top-level code runs twice**: once by the browser, once through state's `blob:` import. Under a CSP without a nonce on it, the browser's run is refused and the console shows one violation; state still loads. Either way, **keep side effects out of the top level** (no `fetch`, logging or assignments to globals next to `export default { … }`); do that work in methods or `$connectedCallback`.
 - **`<wcs-guard-handler>` goes through `blob:` too, and has no `src=` form.** The nonce on the `<script>` that loads router admits it the same way. Without a nonce, using guards forces `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source) — control access on the route-content side instead if the policy must stay strict.
@@ -365,17 +365,33 @@ An inner array held by several outer rows (`const inner = […]; groups: [{ item
 ```javascript
 export default {
   users: [{ id: 1, firstName: "Alice", lastName: "Smith" }],
+  admins: [{ id: 9, firstName: "Root", lastName: "Admin" }],
   get total() { return this.price * (1 + this.tax); },          // top level
   get "cart.totalPrice"() { /* nested computed */ },
   get "users.*.fullName"() {                                     // wildcard
     return this["users.*.firstName"] + " " + this["users.*.lastName"];
   },
   set "users.*.fullName"(value) { /* path setter, two-way capable */ },
+  get "users.*.initials"() {                                     // 4.22: the row by relative paths
+    return this[".firstName"][0] + this[".lastName"][0];
+  },
+  get "users.*.label,admins.*.label"() {                         // 4.22: one accessor for several lists
+    return this[".lastName"].toUpperCase();
+  },
   get "categories.*.items.*.label"() { /* multiple wildcards */ },
 };
 ```
 
 - Inside a getter, `this["users.*.firstName"]` auto-resolves to the current loop element. Automatic dependency tracking, per-address caching.
+- **A path relative to the row (4.22)**: in code evaluated for a row, a path that starts with `.` is the path under that row's element — the same expansion as `.name` in a `for:` template. Inside `get "users.*.fullName"()`, `this[".firstName"]` is `this["users.*.firstName"]`, `this["."]` is the element itself (the value, in an array of primitives), and `this.$getAll(".lines.*.amount")` aggregates a list under the row. Reads and writes both; once expanded it is the full path, with the same dependencies and cache.
+  - The row is the **innermost** one the code runs at: a row accessor's is up to the last `*` of its key (`.name` inside `get "regions.*.states.*.label"()` is `regions.*.states.*.name`; read the outer row by its full path, `this["regions.*.name"]`; `.zip` inside `get "users.*.address.label"()` is `users.*.zip`, not `address.zip`). A method called from a row has one too: a handler inside a `for:` row, a `$setAll` mapper, `$update`'s function.
+  - Taken by `this[...]`, `$getAll`, `$eq`, `$dependOn` and `$postUpdate`. **Not** by `$resolve`, `$setAll` or `$update`: they are told their rows by `indexes`, so a relative path there throws — write the full path (lint: `wcs/wildcard-rank`, error).
+  - With no row — a top-level getter or setter, `$connectedCallback`, a method called from outside a row — it throws `[wcs/wildcard-rank]` (`#1402`). The lint reports it as an error in an accessor whose key has no `*`; it does not check a relative path in a method (the row is the caller's).
+- **One accessor for several paths (4.22)**: a key that lists paths separated by commas declares the getter (and a `set` with the same key, the setter) for each — `get "users.*.label,admins.*.label"()`. Each path has its own cache and dependencies.
+  - **Commas only, no spaces**: the runtime takes what is between the commas as it is, so `"users.*.label, admins.*.label"` declares ` admins.*.label`, a path nothing reads — the page fails to initialize with `[wcs/accessor-list-syntax]` (lint: the same code, error).
+  - **Write the body in relative paths.** A full path of one of the lists (`this["users.*.lastName"]`) has no row at the other lists' rows: `undefined` on read, `#3` on write, and only those lists show it (`[wcs/accessor-list-path]` warns in the console; lint: the same code, error). A full path is fine for two names in one list (`"users.*.label,users.*.title"`) and for an outer row every listed path shares.
+  - **Use it for a filtered or sorted copy**: the rows of `for: shown` are `shown.*`, so `get "users.*.label"()` alone leaves `{{ .label }}` empty there. Declare `get "users.*.label,shown.*.label"()` beside `get shown() { return this.users.filter(…); }`.
+  - A recursive key (`**`) cannot be listed.
 - **Numeric indexes are ordinary path segments**: `this["users.0.name"]`, `` this[`cart.items.${i}.quantity`] += 1 `` (or, since 4.16, `this.$update("cart.items.*.quantity", [i], q => q + 1)`, which the lint can check), `{{ users.1.name }}`, `groups.0.items.1.v`, `for: groups.0.items` — they read, write and follow writes on any list, rendered or not. A `$watch` key with a numeric index (`"items.0.v"`) fires only when the value at that index changes.
 - **Numeric keys under a plain object** (`sales.2024.total`, `usersById.42.name`) are the exception (known 4.0 limitation): markup renders them, but a script read (`this["sales.2024.total"]`, also inside a getter) gives `undefined`, `$eq` on such a path is always false, a write throws `no row for "sales.*.total"`, and a two-way write-back fails. Read `this.sales[2024].total`, and write by assigning a new object to the top-level key (`this.sales = { ...this.sales, 2024: { ...this.sales[2024], total: 10 } }`) — or use keys that are not numbers.
 - **Writing a top-level key the state does not have creates it** (reading one throws `[wcs/binding-path-missing]`). Declare every key; a write typo is otherwise silent.
@@ -441,7 +457,7 @@ this.$setAll("users.*", [], rows, { spread: true });               // one entry 
 - Three forms: a **function** is a mapper; **anything else broadcasts** (arrays included — the target may itself be array-valued); an array **plus `{ spread: true }`** hands one entry per matched address, and a length mismatch throws (`#10`) rather than misaligning.
 - `undefined` is never written ("skip this address" in all three forms — a mapper that forgets to `return` wipes nothing); use `null` to clear. Returns the number of addresses written.
 - `indexes` is a prefix exactly as in `$getAll` but **required** (`#9`) — writes get no implicit loop context, so inside a `for` template `$setAll("users.*.selected", [], true)` still means *every* user, never the current row.
-- **A mapper runs at the row it writes** (4.16): inside it `this.$1` and a relative path (`this["users.*.name"]`) are that row's — in an arrow function too — not the row whose handler called `$setAll` (until 4.15 it read the clicked row). Read the clicked row's values into a variable before the call when you mean them.
+- **A mapper runs at the row it writes** (4.16): inside it `this.$1`, a wildcard path (`this["users.*.name"]`) and, since 4.22, a path relative to the row (`this[".name"]`) are that row's — in an arrow function too — not the row whose handler called `$setAll` (until 4.15 it read the clicked row). Read the clicked row's values into a variable before the call when you mean them.
 - Not a shortcut for the dependency walk: each write is enqueued individually (cost matches the hand-written loop); rendering still coalesces into one batch.
 
 ### `$update` — one row from its current value (4.16)
