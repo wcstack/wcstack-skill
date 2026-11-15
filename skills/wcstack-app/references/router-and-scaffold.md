@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.md` / `README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md` and, for what `@wcstack/state` 4.0 changes on routes, `docs/migration-v4.md` §3.9 and `packages/state/src/dom/mount.ts`. All verified against the actual files at v4.23.0. The router behaviour 4.0 relies on arrived with router 3.5: a route carries its whole range out and back in (§1), a parameter-only navigation reconnects the route content once (§2), layouts bind on the first navigation (§3). What changes with `@wcstack/state` 4.0 is what state renders inside a route (§1), and `bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have (§1, §6).
+Sources: `packages/router/README.md` / `README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md` and, for what `@wcstack/state` 4.0 changes on routes, `docs/migration-v4.md` §3.9 and `packages/state/src/dom/mount.ts`. All verified against the actual files at v4.24.0. The router behaviour 4.0 relies on arrived with router 3.5: a route carries its whole range out and back in (§1), a parameter-only navigation reconnects the route content once (§2), layouts bind on the first navigation (§3). What changes with `@wcstack/state` 4.0 is what state renders inside a route (§1), and `bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have (§1, §6).
 
 ## 1. Minimal SPA scaffold
 
@@ -22,7 +22,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.23.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.24.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -239,7 +239,7 @@ The third argument is a frozen `{ params, typedParams, searchParams, routeName }
 
 **A guard that takes time and redirects a page load**: on a page pinned to 4.22 or earlier, the route it redirects to is not bound (`[wcs/inserted-unbound]` a second later) — a guard that answers at once is fine. Fixed in 4.23.
 
-**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.23.0/dist/auto.min.js">` runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead. A CSP-blocked guard is reported as CSP (on Firefox too), and the message names the nonce fix.
+**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.24.0/dist/auto.min.js">` runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead. A CSP-blocked guard is reported as CSP (on Firefox too), and the message names the nonce fix.
 
 ### basename
 
@@ -512,3 +512,10 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 14. **Text `{{ }}` directly under `<wcs-route>` or a layout template binds on the landing route only** — wrap it in an element (§1, §3); lint reports it (`wcs/route-bare-mustache`, 4.2). A `for:` / `if:` directly under `<wcs-route>` renders with `@wcstack/state` 4.0, but not at the top of a `<wcs-head>` (#204). Wrapping the whole body in one element works everywhere.
 15. **`bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have** (`scanImportmap` included); `/auto` passes none (§1, §6).
 16. **Delegated `on*:` handlers belong to the root they were bound in** (`state-binding.md` §8): a node your code moves under another root — out of a component's shadow root to `document.body` (a dialog) — keeps its bindings but not its delegated handlers; write `on*#direct:` on it. Moving within the document (a route body → `<body>`) keeps them.
+
+## `<wcs-link>` in a list, and coming back to a row (4.24)
+
+- `attr.to: .href` is the form that works on every release. Since 4.24 `to: .href` (a property binding) works too; up to 4.23 it left the `<a>` with no `href`, silently.
+- **Handlers go inside the link or around it, never on it**: `<wcs-link>` is `display: none` and the click is on the `<a>` beside it (lint `wcs/link-handler`, error). A card that is a link with a ★: the button **beside** the link (a button inside an `<a>` still follows the link), in one wrapper per row.
+- **Back** restores the scroll position of a list by itself, as long as the list still holds its rows (keep them in state).
+- **Your own link back to a row** — "back to the list" after a detail page — is a push navigation, and the browser scrolls to the top when it has finished: a `scrollIntoView()` from a `$watch` on `routeName` is undone. Give the row an `id` and navigate to its fragment: `this.navigateUrl = "/#photo-" + id` (or `attr.to: backHref`). The browser scrolls to the row and focus moves to it (a link, a button, an element with `tabindex`); `scroll-margin-top` clears a sticky header.
