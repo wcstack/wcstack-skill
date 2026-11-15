@@ -512,3 +512,10 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 14. **Text `{{ }}` directly under `<wcs-route>` or a layout template binds on the landing route only** — wrap it in an element (§1, §3); lint reports it (`wcs/route-bare-mustache`, 4.2). A `for:` / `if:` directly under `<wcs-route>` renders with `@wcstack/state` 4.0, but not at the top of a `<wcs-head>` (#204). Wrapping the whole body in one element works everywhere.
 15. **`bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have** (`scanImportmap` included); `/auto` passes none (§1, §6).
 16. **Delegated `on*:` handlers belong to the root they were bound in** (`state-binding.md` §8): a node your code moves under another root — out of a component's shadow root to `document.body` (a dialog) — keeps its bindings but not its delegated handlers; write `on*#direct:` on it. Moving within the document (a route body → `<body>`) keeps them.
+
+## `<wcs-link>` in a list, and coming back to a row (4.24)
+
+- `attr.to: .href` is the form that works on every release. Since 4.24 `to: .href` (a property binding) works too; up to 4.23 it left the `<a>` with no `href`, silently.
+- **Handlers go inside the link or around it, never on it**: `<wcs-link>` is `display: none` and the click is on the `<a>` beside it (lint `wcs/link-handler`, error). A card that is a link with a ★: the button **beside** the link (a button inside an `<a>` still follows the link), in one wrapper per row.
+- **Back** restores the scroll position of a list by itself, as long as the list still holds its rows (keep them in state).
+- **Your own link back to a row** — "back to the list" after a detail page — is a push navigation, and the browser scrolls to the top when it has finished: a `scrollIntoView()` from a `$watch` on `routeName` is undone. Give the row an `id` and navigate to its fragment: `this.navigateUrl = "/#photo-" + id` (or `attr.to: backHref`). The browser scrolls to the row and focus moves to it (a link, a button, an element with `tabindex`); `scroll-margin-top` clears a sticky header.
