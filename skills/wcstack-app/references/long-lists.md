@@ -1,6 +1,6 @@
 # Long lists
 
-A page with a long list: infinite scroll, a feed, a table of thousands of rows, a list the user comes back to. Sources: `docs/long-lists.md` (+ `.ja.md`), `packages/fetch/README.md` §5, `packages/intersection/README.md`, `docs/timing-and-firing-contract.md` §26, the router README "Where route content lives", `docs/seam-apps.md` (town-archive). Verified against wcstack 4.24.0; the infinite-scroll example, the abort on a filter change and the link back to a row's fragment were run in Chromium, Firefox and WebKit. What says 4.24 needs that release; on 4.23 see the notes.
+A page with a long list: infinite scroll, a feed, a table of thousands of rows, a list the user comes back to. Sources: `docs/long-lists.md` (+ `.ja.md`), `packages/fetch/README.md` §5, `packages/intersection/README.md`, `docs/timing-and-firing-contract.md` §26, the router README "Where route content lives", `docs/seam-apps.md` (town-archive). Verified against wcstack 4.24.1; the infinite-scroll example, the abort on a filter change and the link back to a row's fragment were run in Chromium, Firefox and WebKit. What says 4.24 needs that release; on 4.23 see the notes.
 
 ## 1. What costs
 
@@ -42,7 +42,8 @@ export default {
 ```
 
 - The `url` comes from state, never a static attribute for page 1 (the first answer can arrive before state has bound the element).
-- 4.24: the sentinel loads the first page when state writes the url, goes on while a page leaves it on screen, never repeats a failed request (the user scrolls away and back, or a retry button writes `trigger`), and stops at a response that added no row. **On 4.23 it does none of these** — use `<wcs-intersect target="self">` with `eventToken.intersecting:`, a first page asked from `$connectedCallback`, and `command.reobserve:` after each page that lands (never after a failure), as `examples/state-intersect-fetch` does.
+- 4.24: the sentinel loads the first page when state writes the url, goes on while a page leaves it on screen, never repeats a failed request (the user scrolls away and back, or a retry button writes `trigger`), and stops at a response that added no row. (4.24.0 asked for one page ahead when the user was scrolling as a page landed; 4.24.1 does not.) **On 4.23 it does none of these** — use `<wcs-intersect target="self">` with `eventToken.intersecting:`, a first page asked from `$connectedCallback`, and `command.reobserve:` after each page that lands (never after a failure), as `examples/state-intersect-fetch` does.
+- Put the sentinel right after the list, **above** a spinner or a message shown while a page loads, so that only rows move it. A spinner inserted above it when a request starts pushes it out of its margin, a scroll that goes on brings it back, and a request that failed in between is asked again.
 - `<wcs-intersect>` is still the element for an edge the page schedules itself (a list that grows at both ends): act on the report, not on a stored flag; ask for the page the list's length says, not `page++`.
 - `root` is the element that scrolls (an id or a selector, 4.24); a root that does not scroll counts everything in it as on screen. `root-margin` lengths need `px` or `%`.
 
