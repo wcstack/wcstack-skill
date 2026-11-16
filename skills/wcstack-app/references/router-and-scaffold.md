@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.md` / `README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md` and, for what `@wcstack/state` 4.0 changes on routes, `docs/migration-v4.md` §3.9 and `packages/state/src/dom/mount.ts`. All verified against the actual files at v4.24.1. The router behaviour 4.0 relies on arrived with router 3.5: a route carries its whole range out and back in (§1), a parameter-only navigation reconnects the route content once (§2), layouts bind on the first navigation (§3). What changes with `@wcstack/state` 4.0 is what state renders inside a route (§1), and `bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have (§1, §6).
+Sources: `packages/router/README.md` / `README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md` and, for what `@wcstack/state` 4.0 changes on routes, `docs/migration-v4.md` §3.9 and `packages/state/src/dom/mount.ts`. All verified against the actual files at v4.24.2. The router behaviour 4.0 relies on arrived with router 3.5: a route carries its whole range out and back in (§1), a parameter-only navigation reconnects the route content once (§2), layouts bind on the first navigation (§3). What changes with `@wcstack/state` 4.0 is what state renders inside a route (§1), and `bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have (§1, §6).
 
 ## 1. Minimal SPA scaffold
 
@@ -22,7 +22,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.24.1/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.24.2/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -86,6 +86,14 @@ Route elements are **detached controllers** after parsing: they are not part of 
 ### Matching priority
 
 1. More segments → 2. more static segments (`"users"` > `":id"` > `"*"`) → 3. definition order. `/products` and `/products/` are treated as identical.
+
+### Characters in a path (4.24.2)
+
+- **A static segment is the characters as written**: `path="/v1.0"` matches `/v1.0` only, and `.`, `+`, `(`, `[`, `|`, `?` have no special meaning. A route can be written in any script — `path="/café"`, `path="/お知らせ"`: the URL's segments are percent-decoded before they are compared (the browser's `location.pathname` is `/caf%C3%A9`).
+- **`params` / `typedParams` are decoded**: at `/users/%E2%82%AC`, `params.id` is `"€"`. Never `decodeURIComponent()` a param again — a value with a `%` in it throws. An encoded slash stays inside the value (`/users/a%2Fb` → `"a/b"`), and `params['*']` is the remaining segments, each decoded, joined with `/`.
+- **`path` (the router's output) and a guard's `toPath` / `fromPath` are in the URL's form** (`/users/%E2%82%AC`): give them back to `navigate()` as they are, and decode only to display.
+- `navigate()` and `<wcs-link to>` take a path written either way (`"/users/€"` or encoded). A **value** put into a path is encoded first — `` navigate(`/users/${encodeURIComponent(name)}`) `` — or a `/`, `?` or `#` in it changes the URL.
+- **Up to 4.24.1 none of this held**: a static segment was a regular expression (`/v1.0` matched `/v1x0`; a `+` or `(` in a path stopped the whole router), a route with a character outside ASCII or a space matched no URL, a `<wcs-link>` to such a path was never the current page, and params arrived percent-encoded. On those releases keep route paths to ASCII letters, digits, `-` and `_`, and decode a param yourself.
 
 ## 2. Typed path parameters
 
@@ -239,7 +247,7 @@ The third argument is a frozen `{ params, typedParams, searchParams, routeName }
 
 **A guard that takes time and redirects a page load**: on a page pinned to 4.22 or earlier, the route it redirects to is not bound (`[wcs/inserted-unbound]` a second later) — a guard that answers at once is fine. Fixed in 4.23.
 
-**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.24.1/dist/auto.min.js">` runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead. A CSP-blocked guard is reported as CSP (on Firefox too), and the message names the nonce fix.
+**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.24.2/dist/auto.min.js">` runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead. A CSP-blocked guard is reported as CSP (on Firefox too), and the message names the nonce fix.
 
 ### basename
 
