@@ -8,30 +8,36 @@ With this skill installed, asking your AI assistant to "build an app with wcstac
 
 ```
 skills/wcstack-app/
-├── SKILL.md                          # Workflow, cheat sheet, failure-mode matrix
+├── SKILL.md                          # Workflow, invariants, cheat sheet, the most
+│                                     #   frequent failures
 └── references/
-    ├── state-binding.md              # Full data-wcs syntax, comment bindings, 47 built-in
-    │                                 #   filters, delegated events + #direct, command-/
-    │                                 #   event-tokens, $behavior, $watch, spread rules,
-    │                                 #   $recursion / ** for trees, accumulation over
-    │                                 #   time ($watch / $on), keyed selection ($eq*),
-    │                                 #   split entries (/core, split auto, $features),
-    │                                 #   and what to rewrite in 3.x code
-    ├── router-and-scaffold.md        # SPA routing, layouts, autoloader,
+    ├── state-binding.md              # Full data-wcs syntax, comment bindings, filters,
+    │                                 #   delegated events + #direct, command-/event-tokens,
+    │                                 #   $behavior, $watch, spread rules, $recursion / **,
+    │                                 #   accumulation over time, keyed selection ($eq*),
+    │                                 #   split entries, 3.x code, the pitfall checklist
+    ├── router-and-scaffold.md        # SPA routing, layouts, guards, autoloader,
     │                                 #   index.html skeleton + SPA server fallback
     ├── io-node-catalog.md            # wcBindable catalog of 52 wcs-* tags
     │                                 #   + signals quick reference
-    ├── islands.md                    # a page wcstack does not own: htmx / Turbo,
-                                      #   inserted markup, history caches, widgets
     ├── forms.md                      # a page that is mostly a form: the IME, fields that
-                                      #   format, autofill, reset, rows, own form controls
+    │                                 #   format, autofill, reset, rows, own form controls
     ├── long-lists.md                 # a long list: infinite scroll, a filter and a page on
-                                      #   its way, rows, a window of rows, coming back
-    └── device-apis.md                # the screen and the sensors: a tap, is it there, the
-                                      #   iPhone's question, fullscreen, pickers, passwords
+    │                                 #   its way, rows, a window of rows, coming back
+    ├── device-apis.md                # the screen and the sensors: a tap, is it there, the
+    │                                 #   iPhone's question, fullscreen, pickers, passwords
+    ├── islands.md                    # a page wcstack does not own: htmx / Turbo,
+    │                                 #   inserted markup, history caches, widgets
+    ├── frameworks.md                 # wcs-* elements in a React / Vue / Svelte / Solid app
+    ├── verification.md               # the lint in depth, wcs-schema / wcs-tsc, console
+    │                                 #   messages, DevTools, headless tests, SSR
+    └── versions.md                   # a page pinned to an older 4.x release
 ```
 
-The skill uses progressive disclosure: `SKILL.md` stays small (workflow + invariants) and the references load only when the matching phase is reached.
+The skill uses progressive disclosure: `SKILL.md` stays small — the workflow, the invariants and the most frequent failures, about 20 KB — and the references load only when the matching phase is reached. Keep it that way when adding to the skill:
+
+- New knowledge goes into the reference of its area (a failure into that reference's pitfalls), not into `SKILL.md`. `SKILL.md` names a failure only if authors of most apps meet it.
+- The skill describes one release, the one in its stamp. Write a behaviour as it is in that release, with no "since 4.x" / "up to 4.x" notes; what a page pinned to an older 4.x release does differently goes in `references/versions.md`.
 
 ## Install
 
