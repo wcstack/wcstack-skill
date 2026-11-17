@@ -25,8 +25,10 @@ skills/wcstack-app/
                                       #   inserted markup, history caches, widgets
     ├── forms.md                      # a page that is mostly a form: the IME, fields that
                                       #   format, autofill, reset, rows, own form controls
-    └── long-lists.md                 # a long list: infinite scroll, a filter and a page on
+    ├── long-lists.md                 # a long list: infinite scroll, a filter and a page on
                                       #   its way, rows, a window of rows, coming back
+    └── device-apis.md                # the screen and the sensors: a tap, is it there, the
+                                      #   iPhone's question, fullscreen, pickers, passwords
 ```
 
 The skill uses progressive disclosure: `SKILL.md` stays small (workflow + invariants) and the references load only when the matching phase is reached.
@@ -49,7 +51,7 @@ Copy `skills/wcstack-app/` into:
 
 ## Versioning
 
-The plugin version tracks the wcstack release the content was last verified against (currently **4.24.2**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
+The plugin version tracks the wcstack release the content was last verified against (currently **4.25.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
 
 Pages that must stay on wcstack 3.x pin the major in their CDN URLs (`https://esm.run/@wcstack/state@3/auto`) and use a skill release verified against 3.5.4 (the `v3.5.4` tag of this repository).
 
