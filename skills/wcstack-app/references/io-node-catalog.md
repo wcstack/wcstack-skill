@@ -163,6 +163,8 @@ set savedCart(lines) { if (Array.isArray(lines)) this.cart = lines; },   // null
 ```
 Forgetting `#init=element` on the accessor pair empties the stored cart on reload (the getter's `[]` is written first) — `wcs/storage-seed-clobber` reports it since 4.0.3. Changes saved by another tab arrive through the setter (the `storage` event), so two tabs share the cart with no extra code. A stored cart is restored **before** a fetched catalog arrives: write the lookup getters with `?.` / `??`.
 
+**Saving when the page chooses** (a Save button for settings): give the element a slot the page assigns only then — `<wcs-storage key="settings" data-wcs="value#init=element: saved">` with `saved: null`, `save() { this.saved = { ...this.settings }; }`, and a `$watch` on `saved` that copies a loaded value into `settings`. Not `manual` + `trigger: settingsChanged` with a getter that returns `true`: the element writes `trigger` back (`[wcs/path-readonly]` on every change, lint error), and `manual` loads nothing, so the saved settings never come back.
+
 **websocket** — receive via `message`; to send, just write a value to `send`:
 ```html
 <wcs-ws url="wss://example.com/ws"

@@ -520,6 +520,7 @@ if (!url.pathname.startsWith("/api/") && extname(url.pathname) === "") {
 14. **Text `{{ }}` directly under `<wcs-route>` or a layout template binds on the landing route only** — wrap it in an element (§1, §3); lint reports it (`wcs/route-bare-mustache`, 4.2). A `for:` / `if:` directly under `<wcs-route>` renders with `@wcstack/state` 4.0, but not at the top of a `<wcs-head>` (#204). Wrapping the whole body in one element works everywhere.
 15. **`bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have** (`scanImportmap` included); `/auto` passes none (§1, §6).
 16. **Delegated `on*:` handlers belong to the root they were bound in** (`state-binding.md` §8): a node your code moves under another root — out of a component's shadow root to `document.body` (a dialog) — keeps its bindings but not its delegated handlers; write `on*#direct:` on it. Moving within the document (a route body → `<body>`) keeps them.
+17. **A guard reads the session itself, inside its function.** It cannot see state, it runs before state on a page load, and its module is evaluated once: a session taken from state, or read at the module's top level, decides every navigation with what was there at page load — logged-in members are sent to `/login`, or a tab that logged out gets in. Read `localStorage` (the `<wcs-storage>` key) or the cookie inside the function (lint `wcs/session-read-at-module-top`, error in a guard's module).
 
 ## `<wcs-link>` in a list, and coming back to a row (4.24)
 
