@@ -2,16 +2,16 @@
 name: wcstack-app
 description: Build web apps, SPAs, and demo pages with wcstack (@wcstack/state, router, signals, and the wcs-* I/O node components such as wcs-fetch / wcs-storage / wcs-ws / wcs-midi / wcs-audio). Follows the project's standards-first, zero-config, buildless principles — one-line CDN loading, then state design → data-wcs binding → I/O node wiring → routing, with exact syntax. Use when the user asks (in any language) to build something with wcstack, wcs-state, data-wcs, wcs-fetch or other wcs-* tags, or a signals-based app (e.g. "build an app with wcstack", 「wcstackでアプリを作って」「wcs-fetchで〜して」). Also covers embedding wcs-* I/O nodes inside a React / Vue / Svelte / Solid app via the wc-bindable adapters. Do NOT use for generic Web Components / Custom Elements questions unrelated to wcstack, for building React / Vue / Lit / NoJS apps that do not touch wcstack, or for developing or modifying the wcstack packages themselves.
 metadata:
-  wcstack-version: "4.25.0"
+  wcstack-version: "4.26.0"
 ---
 
 # Building apps with wcstack
 
 ## Overview
 
-wcstack is a family of "standards-first, zero-config, buildless" Web Components packages. An app is correctly a **single HTML file + one-line CDN loads** — do not introduce bundlers, build steps, or npm install unless the user explicitly asks for them.
+wcstack is a family of "standards-first, zero-config, buildless" Web Components packages. An app is correctly a **single HTML file + one-line CDN loads** — do not introduce bundlers, build steps, or npm install unless the user explicitly asks for them. A request for TypeScript or a production build is such a request: keep the state in a `.ts` file and build with Vite and `@wcstack/typescript/vite` (`references/verification.md` §2).
 
-**This skill describes wcstack 4.25.0** (the `wcstack-version` above): every rule here is that release's. A page pinned to an older 4.x release: `references/versions.md`. 3.x code: `references/state-binding.md` §16 and `docs/migration-v4.md` in the wcstack repo. Upgrading a 4.x app: `docs/upgrading-4x.md` in the wcstack repo. If the installed / CDN version is newer than this skill, spot-check syntax against the package READMEs.
+**This skill describes wcstack 4.26.0** (the `wcstack-version` above): every rule here is that release's. A page pinned to an older 4.x release: `references/versions.md`. 3.x code: `references/state-binding.md` §16 and `docs/migration-v4.md` in the wcstack repo. Upgrading a 4.x app: `docs/upgrading-4x.md` in the wcstack repo. If the installed / CDN version is newer than this skill, spot-check syntax against the package READMEs.
 
 What 4.0 changed from 3.x — write the 4.0 form even if you remember the 3.x one:
 
@@ -59,7 +59,7 @@ What 4.0 changed from 3.x — write the 4.0 form even if you remember the 3.x on
 - An SPA **must have `<base href="/">`** (or the basename, `/ja/`) in `<head>`, and **`<wcs-outlet>` right after its `<wcs-router>`** — to render inside `<main>`, put both there.
 - **Always set `<html lang>`** — the locale of the `locale` / `date` / `time` / `datetime` filters, read when state loads.
 - **One copy of each package, every wcstack line at one version.** `wcstack/auto` bundles state + router + fetch + storage + autoloader in one file — use it when the app uses that core anyway. Never merge files with jsDelivr `/combine/`.
-- `esm.run/@wcstack/<pkg>/auto` follows npm `latest`. To stay on a release, pin it on every line (`@wcstack/state@4.25.0/auto`) and keep `@wcstack/lint` at that version.
+- `esm.run/@wcstack/<pkg>/auto` follows npm `latest`. To stay on a release, pin it on every line (`@wcstack/state@4.26.0/auto`) and keep `@wcstack/lint` at that version.
 - **Production hardening, CSP, SRI and the split entries — only when the user asks**: `references/state-binding.md` §1–2. The one CSP fact that silently breaks a working page: the inline `<script type="module">` inside `<wcs-state>` is imported through a `blob:` URL, so under a strict policy the `<script>` that loads state needs the page nonce — or move the state to `src="./state.js"`.
 
 ### 3. State design
@@ -108,6 +108,7 @@ npx @wcstack/lint --errors-only index.html   # the final gate
 - Pass every HTML file and `wcstack.manifest.json` sidecar; `<wcs-state src>` files are read automatically. Files listed under `not read:` / `nothing to check:` are not verified — a framework app is checked in the browser.
 - Each diagnostic names its `wcs/<code>`, a `source:line:col` range and the fix. A warning can be a real defect (`wcs/binding-path-missing` is a column left empty).
 - **Runtime messages carry the same `[wcs/<code>]`**: run the lint and fix every instance, not just the one that threw. The console's checks under-approximate — no warning proves nothing.
+- With a TypeScript state and its generated `stateSchema`, run `npx wcs-schema check <state.ts>` before the lint: the schema wins over the script, so a stale one checks the HTML against the old names.
 - If the lint cannot run (offline, no npx), say so explicitly.
 - Then run the page in a browser (a tiny server if it fetches; an SPA needs the "every extensionless GET returns index.html" fallback).
 - TypeScript states (`wcs-schema`, `wcs-tsc`), reading console messages, DevTools coverage, headless tests and SSR: `references/verification.md`.

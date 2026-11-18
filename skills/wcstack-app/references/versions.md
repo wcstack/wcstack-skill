@@ -12,6 +12,9 @@ Each row applies to every release up to and including the one named. The workaro
 
 | Pinned at or below | What differs | Write instead |
 |---|---|---|
+| 4.25 | Clearing `<wcs-sse>` / `<wcs-ws>`'s `url` leaves the connection open; `<wcs-sse>` does nothing when the page leaves | Call `close()` with clearing `url` (sign-out); close the stream in a `beforeunload` listener only on a page without a router (WebKit fires it on router navigations) |
+| 4.25 | `<wcs-debounce>` / `<wcs-throttle>` `value` starts `undefined` and seeds the bound slot with it | Guard the slot's `$watch` against `undefined` |
+| 4.25 | No Vite plugin; `wcs-tsc` checks an inline state as TypeScript (JSDoc ignored, a type annotation passes) | Mark inline scripts `vite-ignore` and emit the `src` state file yourself; write an inline state without annotations |
 | 4.24 | The screen and sensor elements have no `supported` output, and `<wcs-permission>` no `unsupportedReason` | Detect the API yourself (`document.fullscreenEnabled`, `"share" in navigator`, `document.permissionsPolicy`) before offering the button |
 | 4.24 | `<wcs-tilt>` sets `permissionState` to `"denied"` when an iPhone refused to ask (a call outside a tap), and has no `heading` | Read `"denied"` with a non-null `error` as "not asked yet" (`permissionState !== "granted"` shows the button); find north with a `deviceorientationabsolute` / `webkitCompassHeading` listener |
 | 4.24 | `<wcs-accelerometer>` / `<wcs-gyroscope>` are `unsupported` where the browser has no sensor class (an iPhone, Firefox) | A `devicemotion` listener of the page's own, with `DeviceMotionEvent.requestPermission()` called from the tap |
