@@ -9,7 +9,7 @@ metadata:
 
 ## Overview
 
-wcstack is a family of "standards-first, zero-config, buildless" Web Components packages. An app is correctly a **single HTML file + one-line CDN loads** — do not introduce bundlers, build steps, or npm install unless the user explicitly asks for them.
+wcstack is a family of "standards-first, zero-config, buildless" Web Components packages. An app is correctly a **single HTML file + one-line CDN loads** — do not introduce bundlers, build steps, or npm install unless the user explicitly asks for them. A request for TypeScript or a production build is such a request: keep the state in a `.ts` file and build with Vite and `@wcstack/typescript/vite` (`references/verification.md` §2).
 
 **This skill describes wcstack 4.25.0** (the `wcstack-version` above): every rule here is that release's. A page pinned to an older 4.x release: `references/versions.md`. 3.x code: `references/state-binding.md` §16 and `docs/migration-v4.md` in the wcstack repo. Upgrading a 4.x app: `docs/upgrading-4x.md` in the wcstack repo. If the installed / CDN version is newer than this skill, spot-check syntax against the package READMEs.
 
@@ -108,6 +108,7 @@ npx @wcstack/lint --errors-only index.html   # the final gate
 - Pass every HTML file and `wcstack.manifest.json` sidecar; `<wcs-state src>` files are read automatically. Files listed under `not read:` / `nothing to check:` are not verified — a framework app is checked in the browser.
 - Each diagnostic names its `wcs/<code>`, a `source:line:col` range and the fix. A warning can be a real defect (`wcs/binding-path-missing` is a column left empty).
 - **Runtime messages carry the same `[wcs/<code>]`**: run the lint and fix every instance, not just the one that threw. The console's checks under-approximate — no warning proves nothing.
+- With a TypeScript state and its generated `stateSchema`, run `npx wcs-schema check <state.ts>` before the lint: the schema wins over the script, so a stale one checks the HTML against the old names.
 - If the lint cannot run (offline, no npx), say so explicitly.
 - Then run the page in a browser (a tiny server if it fetches; an SPA needs the "every extensionless GET returns index.html" fallback).
 - TypeScript states (`wcs-schema`, `wcs-tsc`), reading console messages, DevTools coverage, headless tests and SSR: `references/verification.md`.
