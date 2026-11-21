@@ -110,6 +110,7 @@ npx @wcstack/lint --errors-only index.html   # the final gate
 - **Runtime messages carry the same `[wcs/<code>]`**: run the lint and fix every instance, not just the one that threw. The console's checks under-approximate — no warning proves nothing.
 - With a TypeScript state and its generated `stateSchema`, run `npx wcs-schema check <state.ts>` before the lint: the schema wins over the script, so a stale one checks the HTML against the old names.
 - If the lint cannot run (offline, no npx), say so explicitly.
+- Installed as a Claude Code plugin, the skill runs the lint on each wcstack page you write and hands you its findings: act on them as above (fix errors; fix or explain each warning).
 - Then run the page in a browser (a tiny server if it fetches; an SPA needs the "every extensionless GET returns index.html" fallback).
 - TypeScript states (`wcs-schema`, `wcs-tsc`), reading console messages, DevTools coverage, headless tests and SSR: `references/verification.md`.
 

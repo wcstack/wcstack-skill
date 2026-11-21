@@ -48,6 +48,14 @@ The skill uses progressive disclosure: `SKILL.md` stays small — the workflow, 
 /plugin install wcstack-app@wcstack
 ```
 
+The plugin also runs the lint for Claude, so the skill's completion gate does not depend on Claude remembering it (`hooks/`):
+
+- **After Claude writes a wcstack page.** This covers an `.html` with `data-wcs`, a `wcs-*` tag or a wcstack script, and a `wcstack.manifest.json`. `wcs-validate` checks the page, and Claude gets its errors to fix and its warnings as information: each warning can be a real defect, and a false one is explained, not "fixed".
+- **When Claude stops.** The pages written in the session are checked again, and errors that are left are reported to you. Set `WCSTACK_LINT_GATE=enforce` to have the stop refused while errors remain. A stop right after a refusal goes through, and after two refusals in a session every stop does.
+- **Running and switching it off.** The hooks use the project's `wcs-validate` if it is installed, otherwise `npx @wcstack/lint`. They never block when the lint cannot run. `WCSTACK_LINT_HOOK=off` turns them off.
+
+A manual copy of the skill has no hooks.
+
 ### Manual copy
 
 Copy `skills/wcstack-app/` into:
