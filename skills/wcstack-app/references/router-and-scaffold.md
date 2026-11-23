@@ -362,6 +362,13 @@ Load `@wcstack/view-transition/auto` and put `<wcs-view-transition for="router">
 
 **Eager loading** — key does not end with `/`: `"@components/my-button": "./my-button.js"`, `"@components/fancy-input|vanilla,input": "./fancy-input.js"` (when extends is omitted, it is auto-detected from the prototype)
 
+**A loader by the file's extension** (4.28): an eager key that names no loader gets the loader whose postfix matches the file it is mapped to — `.js` → `vanilla`, `.html` → `dcc` — a query or a fragment after it not counted. A lazy namespace names its loader (`|dcc`), default `vanilla`.
+
+**A Declarative Custom Component in a file** (4.28) — the `dcc` loader, postfix `.html`: `"@components/midori-pager": "./parts/midori-pager.html"` (eager), `"@components/midori-badge|dcc": "./parts/badge.part"` (named), `"@components/ui|dcc/": "./parts/ui/"` (lazy: `<ui-note>` → `./parts/ui/note.html`). The file holds the definition (`<midori-pager data-wc-definition><template shadowrootmode="open">…`), one part per file, named after its tag; the page loads `@wcstack/state` as well, which defines the tag.
+- The loader fetches the file, parses it with `setHTMLUnsafe()` and puts its `[data-wc-definition]` elements into a hidden `#wcs-autoloader-definitions` at the end of the page. Text, comments and `<style>` outside the definitions are left behind: a part styles itself in its shadow root.
+- A failure is reported with the file's URL (`Failed to eager load component '…'`): `HTTP 404`, a file with no definition, a browser without `setHTMLUnsafe()`; a tag nothing defines within 10 s (a page without `@wcstack/state`) fails instead of holding the other loads back.
+- Under Trusted Types the file's text goes through the policy in wcstack's slot. The definitions go into the document: a scoped registry is not served.
+
 **Component requirements** (vanilla loader): `.js` extension + `default` export of the custom element class:
 
 ```javascript
