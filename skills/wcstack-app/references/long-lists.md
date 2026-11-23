@@ -1,6 +1,6 @@
 # Long lists
 
-A page with a long list: infinite scroll, a feed, a table of thousands of rows, a list the user comes back to. Sources: `docs/long-lists.md` (+ `.ja.md`), `packages/fetch/README.md` §5, `packages/intersection/README.md`, `docs/timing-and-firing-contract.md` §26, the router README "Where route content lives", `docs/seam-apps.md` (town-archive). Verified against wcstack 4.27.0; the infinite-scroll example, the abort on a filter change and the link back to a row's fragment were run in Chromium, Firefox and WebKit. What says 4.24 needs that release; on 4.23 see the notes.
+A page with a long list: infinite scroll, a feed, a table of thousands of rows, a list the user comes back to. Sources: `docs/long-lists.md` (+ `.ja.md`), `packages/fetch/README.md` §5, `packages/intersection/README.md`, `docs/timing-and-firing-contract.md` §26, the router README "Where route content lives", `docs/seam-apps.md` (town-archive). Verified against wcstack 4.28.0; the infinite-scroll example, the abort on a filter change and the link back to a row's fragment were run in Chromium, Firefox and WebKit. What says 4.24 needs that release; on 4.23 see the notes.
 
 ## 1. What costs
 
