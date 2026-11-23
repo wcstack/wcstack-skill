@@ -1,0 +1,20 @@
+{
+  "description": "Run wcs-validate on a wcstack page Claude writes, and report the errors left when it stops (observe mode unless WCSTACK_LINT_GATE=enforce).",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/wcs-lint.mjs\" post", "timeout": 90 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/wcs-lint.mjs\" stop", "timeout": 120 }
+        ]
+      }
+    ]
+  }
+}
