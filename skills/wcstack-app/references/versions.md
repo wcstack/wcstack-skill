@@ -12,6 +12,8 @@ Each row applies to every release up to and including the one named. The workaro
 
 | Pinned at or below | What differs | Write instead |
 |---|---|---|
+| 4.26 | An `eventToken.*`, an output-property binding or a `bindNode` signal also hears a nested element's bubbling event of the same name, with the inner element's `detail` | Check `event.target` in the handler, or do not nest two elements of the same kind |
+| 4.26 | A form the router draws before the root state loads can be submitted natively — a GET with the fields, a password too, in the URL — and text typed before binding is erased | Write `disabled` on the submit button in the markup and bind it (`disabled: sending`), so it is usable only once bound |
 | 4.25 | Clearing `<wcs-sse>` / `<wcs-ws>`'s `url` leaves the connection open; `<wcs-sse>` does nothing when the page leaves | Call `close()` with clearing `url` (sign-out); close the stream in a `beforeunload` listener only on a page without a router (WebKit fires it on router navigations) |
 | 4.25 | `<wcs-debounce>` / `<wcs-throttle>` `value` starts `undefined` and seeds the bound slot with it | Guard the slot's `$watch` against `undefined` |
 | 4.25 | No Vite plugin; `wcs-tsc` checks an inline state as TypeScript (JSDoc ignored, a type annotation passes) | Mark inline scripts `vite-ignore` and emit the `src` state file yourself; write an inline state without annotations |
