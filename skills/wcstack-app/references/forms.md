@@ -90,6 +90,7 @@ typePhone(e) {
 - **Never exchange the values between rows**: what the elements hold stays at the position.
 - **A list rebuilt from JSON needs `$listKeys`**, or every row is re-created.
 - **A row's radios need a name per row**: `attr.name: .sexGroup` with `get "runners.*.sexGroup"() { return "sex-" + this[".id"]; }`. A literal `name` makes one group of all the rows (lint `wcs/radio-name-shared`).
+- **A radio's value comes before `radio:`**: write `attr.value: .value; radio: theme` (or `value: .; radio: …`). Bindings are applied in the order written, and `radio:` compares the element's `value` when it is applied: `radio: theme; attr.value: .value` compares the browser's `"on"`, no radio is checked at the first render, and nothing says so (a later write of the state checks the right one, which hides it). `checkbox:` does the same.
 - **Keep a server's errors by the row's id** (`errorsById[runner.id]`), not by index.
 - **`<wcs-upload>` / `<wcs-fetch>` in a row that moves**: since 4.23 the request goes on where the browser moves the row with `moveBefore()` (Chromium, Firefox). In Safari the row is taken out and put back and the request is aborted: do not reorder while a row's request is in flight, or keep the I/O elements in a list that does not move.
 

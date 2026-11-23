@@ -240,7 +240,7 @@ property[#modifier[,modifier...]][|input filter...]: path[|output filter...]
 | `class.NAME` | CSS class on/off. **The value must be a `boolean`** — a truthy string or number throws `[wcs/binding-type-expectation]` #401 on every apply. Write `class.on: count\|gt(0)`, or `class.on: label\|truthy` when you really mean "coerce". `undefined` / `null` remove the class |
 | `style.PROP` | CSS style property — the DOM name (`style.backgroundColor`) or the CSS name (`style.background-color`, a custom property `style.--gap`); `undefined` / `null` remove it |
 | `attr.NAME` | Attribute setting (SVG namespace supported) |
-| `radio` | Radio group → single value (two-way) |
+| `radio` | Radio group → single value (two-way). The binding that gives the radio its `value` is written before it — `attr.value: .value; radio: x`; the other way round nothing is checked at the first render (`checkbox` too; `forms.md`) |
 | `checkbox` | Checkbox group → array (two-way) |
 | `onclick`, `on*` | Event handlers (§8) |
 
