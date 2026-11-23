@@ -1,6 +1,6 @@
 # Forms — a page that is mostly a form
 
-Sources: `docs/forms.md` (+ `.ja.md`), `packages/state/README.md` "Forms: what happens outside the `input` event" and "Two-Way Binding", `packages/state/src/features/forms.ts`, `docs/timing-and-firing-contract.md` §25, `packages/fetch/README.md`, `docs/seam-apps.md` (ekiden-entry). Verified against wcstack 4.26.0; every snippet here was run in Chromium.
+Sources: `docs/forms.md` (+ `.ja.md`), `packages/state/README.md` "Forms: what happens outside the `input` event" and "Two-Way Binding", `packages/state/src/features/forms.ts`, `docs/timing-and-firing-contract.md` §25, `packages/fetch/README.md`, `docs/seam-apps.md` (ekiden-entry). Verified against wcstack 4.27.0; every snippet here was run in Chromium.
 
 Read this before building an application form, an entry sheet or a wizard: text typed with an IME (Japanese, Chinese, Korean), fields that format what is typed, autofill, a reset button, rows of inputs that move, form controls of your own.
 
@@ -11,6 +11,12 @@ In `/auto`, `.` and the `wcstack/auto` bundle; a split page installs `@wcstack/s
 - **A field being composed is not written.** While an IME composition is on, the bindings that write the field's `value` wait, and are applied when it is over with the value state has then. So a setter may normalize what is typed, and a write from elsewhere (another tab's draft, a looked-up address) does not break the composition.
 - **A value with no `input` event reaches state**: on `change` (an autofill that fires `change` alone), and for each field of a form before its `submit` handlers run (a value put in silently).
 - **After a reset** (`<button type="reset">`, `form.reset()`) each bound control writes its reset value to state and is written from state again.
+- **Before state binds the form** (the router drew it while the root state loads), nothing is lost and nothing is sent:
+  - the browser never sends a form whose submit is prevented (`onsubmit#prevent`);
+  - a submit made then is made again once the form is bound, with the button pressed;
+  - what the user typed is given back and told to state.
+
+  Disable the submit button while sending (`disabled: sending`), or a click before binding and another after it send twice. Not covered: a form in a shadow root, and a server-rendered form before any script runs — give that one a `method` and an `action` of its own.
 - These are told to state by an `input` (and `change`) event that does not bubble, dispatched on the control: a delegated `oninput:` handler does not run for them.
 
 ## 2. Text composed with an IME
