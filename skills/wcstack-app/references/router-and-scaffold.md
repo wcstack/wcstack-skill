@@ -1,6 +1,6 @@
 # wcstack router / autoloader / app scaffold reference
 
-Sources: `packages/router/README.md` / `README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md` and, for what `@wcstack/state` 4.0 changes on routes, `docs/migration-v4.md` §3.9 and `packages/state/src/dom/mount.ts`. All verified against the actual files at v4.27.0. The router behaviour 4.0 relies on arrived with router 3.5: a route carries its whole range out and back in (§1), a parameter-only navigation reconnects the route content once (§2), layouts bind on the first navigation (§3). What changes with `@wcstack/state` 4.0 is what state renders inside a route (§1), and `bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have (§1, §6).
+Sources: `packages/router/README.md` / `README.ja.md`, `packages/autoloader/README.ja.md`, root `README.md`, `examples/README.ja.md`, `examples/router-spa/` (index.html / server.js / README.ja.md), `packages/router/src/`, plus `docs/csp.md` / `docs/sri.md` and, for what `@wcstack/state` 4.0 changes on routes, `docs/migration-v4.md` §3.9 and `packages/state/src/dom/mount.ts`. All verified against the actual files at v4.28.0. The router behaviour 4.0 relies on arrived with router 3.5: a route carries its whole range out and back in (§1), a parameter-only navigation reconnects the route content once (§2), layouts bind on the first navigation (§3). What changes with `@wcstack/state` 4.0 is what state renders inside a route (§1), and `bootstrapRouter(options)` / `bootstrapAutoloader(options)` throw on an option they do not have (§1, §6).
 
 ## 1. Minimal SPA scaffold
 
@@ -22,7 +22,7 @@ Swap each `esm.run` line for a version-pinned direct path with an `integrity` at
 
 ```html
 <script type="module"
-        src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.27.0/dist/auto.min.js"
+        src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.28.0/dist/auto.min.js"
         integrity="sha384-…"></script>
 ```
 
@@ -247,7 +247,7 @@ The third argument is a frozen `{ params, typedParams, searchParams, routeName }
 
 **A guard that takes time and redirects a page load**: on a page pinned to 4.22 or earlier, the route it redirects to is not bound (`[wcs/inserted-unbound]` a second later) — a guard that answers at once is fine. Fixed in 4.23.
 
-**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.27.0/dist/auto.min.js">` runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead. A CSP-blocked guard is reported as CSP (on Firefox too), and the message names the nonce fix.
+**Under a CSP, guards need the page nonce on the `<script>` that loads router, or `script-src blob:`.** The handler is evaluated through a `blob:` URL, and that import inherits the nonce of the tag that loaded the router bundle — `<script type="module" nonce="{RANDOM}" src="https://cdn.jsdelivr.net/npm/@wcstack/router@4.28.0/dist/auto.min.js">` runs guards under a policy without `blob:`. Unlike `<wcs-state>` there is **no `src=` form to escape to** — this asymmetry is known and unimplemented — so where no nonce can be issued (static hosting), guards force `script-src blob:` (router also retries through a `data:` URL, so `script-src data:` would pass too — do not open it; it is the riskier source). If that policy must stay strict, drop guards and gate on the route-content side (a `<template data-wcs="if: isAuthed">` swap) instead. A CSP-blocked guard is reported as CSP (on Firefox too), and the message names the nonce fix.
 
 ### basename
 
@@ -361,6 +361,13 @@ Load `@wcstack/view-transition/auto` and put `<wcs-view-transition for="router">
 - Slashes inside the prefix are converted to dashes. Loader specification: `"@components/ui|lit/": "./ui/"` (default `vanilla`)
 
 **Eager loading** — key does not end with `/`: `"@components/my-button": "./my-button.js"`, `"@components/fancy-input|vanilla,input": "./fancy-input.js"` (when extends is omitted, it is auto-detected from the prototype)
+
+**A loader by the file's extension** (4.28): an eager key that names no loader gets the loader whose postfix matches the file it is mapped to — `.js` → `vanilla`, `.html` → `dcc` — a query or a fragment after it not counted. A lazy namespace names its loader (`|dcc`), default `vanilla`.
+
+**A Declarative Custom Component in a file** (4.28) — the `dcc` loader, postfix `.html`: `"@components/midori-pager": "./parts/midori-pager.html"` (eager), `"@components/midori-badge|dcc": "./parts/badge.part"` (named), `"@components/ui|dcc/": "./parts/ui/"` (lazy: `<ui-note>` → `./parts/ui/note.html`). The file holds the definition (`<midori-pager data-wc-definition><template shadowrootmode="open">…`), one part per file, named after its tag; the page loads `@wcstack/state` as well, which defines the tag.
+- The loader fetches the file, parses it with `setHTMLUnsafe()` and puts its `[data-wc-definition]` elements into a hidden `#wcs-autoloader-definitions` at the end of the page. Text, comments and `<style>` outside the definitions are left behind: a part styles itself in its shadow root.
+- A failure is reported with the file's URL (`Failed to eager load component '…'`): `HTTP 404`, a file with no definition, a browser without `setHTMLUnsafe()`; a tag nothing defines within 10 s (a page without `@wcstack/state`) fails instead of holding the other loads back.
+- Under Trusted Types the file's text goes through the policy in wcstack's slot. The definitions go into the document: a scoped registry is not served.
 
 **Component requirements** (vanilla loader): `.js` extension + `default` export of the custom element class:
 
