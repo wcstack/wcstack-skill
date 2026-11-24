@@ -12,6 +12,8 @@ Each row applies to every release up to and including the one named. The workaro
 
 | Pinned at or below | What differs | Write instead |
 |---|---|---|
+| 4.28 | The lint reads no component: a page's read of a getter a class component exports is reported `wcs/binding-path-missing`; a component's methods and template, a DCC's declarations and the members a page binds on it are not checked; a DCC's markup and the page's are checked against one set of keys | Declare the exported getters as optional keys in the JSDoc type of the page's data, and check them by hand after a rename; unit-test each part |
+| 4.28 | `radio:` / `checkbox:` written before the binding that gives the control its value is not reported | Check the order by eye: the value first (`attr.value: .value; radio: theme`) |
 | 4.27 | No loader for a DCC kept in a file; an eager key's loader is chosen by the key, never by the file's extension | A loader of the page's own that fetches the file and parses it with `setHTMLUnsafe()`, named in each eager key; or write the definition in every page |
 | 4.27 | An element that writes when it is bound (`value#init=element:`) to a path under a volume whose file arrives after the root's throws `Path "…" does not exist`: the root fails and nothing is bound | Bind the element to a root key and copy it to and from the volume by `$watch` |
 | 4.27 | A DCC's `$connectedCallback` sees the default, not the first value the page gives; an attribute on a DCC is ignored without a word; `#ro` on one mapped key does not hold for a component mounted inside | Derive from the input in a getter; bind every input; do not rely on `#ro` across two levels |
