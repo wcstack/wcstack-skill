@@ -34,6 +34,7 @@ What 4.0 changed from 3.x — write the 4.0 form even if you remember the 3.x on
 | `references/device-apis.md` | the screen and the sensors: fullscreen, Picture-in-Picture, pointer lock, orientation and motion, share, contacts, saved passwords |
 | `references/islands.md` | a page wcstack does not own (htmx, Turbo) or a widget for other sites' pages |
 | `references/frameworks.md` | `wcs-*` elements inside a React / Vue / Svelte / Solid app |
+| `references/coming-from-react.md` | the author knows React, or a React app is being moved: where each construct goes, which habits bite and who says so |
 | `references/verification.md` | finishing: the lint in depth, `wcs-schema` / `wcs-tsc`, console messages, DevTools, headless tests, SSR |
 | `references/versions.md` | a page pinned to an older 4.x release |
 
