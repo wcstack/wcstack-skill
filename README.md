@@ -56,6 +56,19 @@ The plugin also runs the lint for Claude, so the skill's completion gate does no
 
 A manual copy of the skill has no hooks.
 
+#### Updating
+
+Claude Code does not update a plugin from a third-party marketplace on its own: auto-update is off by default for every marketplace but Anthropic's, and an install keeps the version it got. A copy installed for an older release goes on teaching that release's API (a 2.x install describes `$updatedCallback` and `$streams`, which 4.0 removed). To update:
+
+```
+claude plugin marketplace update wcstack
+claude plugin update wcstack-app@wcstack
+```
+
+then `/reload-plugins` in a running session. To keep it current, turn auto-update on for the marketplace: `/plugin` → **Marketplaces** → `wcstack`. `/plugin` → **Installed** shows the version you have; the skill's `metadata.wcstack-version` says the wcstack release it describes.
+
+To pin the skill to the release your pages use, add the marketplace at that tag: `/plugin marketplace add wcstack/wcstack-skill#v4.30.0`. An article or a tutorial written against one release can tell its readers to do this, so they get the skill it was written with.
+
 ### Manual copy
 
 Copy `skills/wcstack-app/` into:
