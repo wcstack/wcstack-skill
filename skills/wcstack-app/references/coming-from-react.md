@@ -59,7 +59,7 @@ Read this when the author knows React, or when a React app is being moved to wcs
 | Routes, `useParams`, `useLocation`, `useSearchParams`, `useNavigate` | `<wcs-router>` with `params:` / `path:` / `searchParams:` bound into the state; write `navigateUrl` (push) or `replaceUrl` (replace) | direct |
 | `<Link>`, `<NavLink>` | `<wcs-link to="…">`; `match="prefix"` for a section, and `current="page"` to say so to a screen reader (since 4.30) | direct |
 | `<Navigate replace>` | A guard that returns the path | a different shape |
-| `useBlocker` + your own dialog | `leaveConfirm` asks with the browser's `confirm()`; an in-page dialog has no counterpart yet | none |
+| `useBlocker` + your own dialog | `leaveHold: dirty` on `<wcs-router>` (4.32): it holds the navigation, `leaving` names where to, and your dialog answers with the router's `proceed()` / `stay()` (`router-and-scaffold.md`). `leaveConfirm` asks with the browser's `confirm()` — keep it for a reload or a link out of the app | none |
 | `React.lazy` | The autoloader loads a part when its tag first appears; code is `import()`ed in a method and a state flag gates what reads it | a different shape |
 | An error boundary | `$errorCallback(error, info)` on the state: it hears a binding that failed, and the page shows its own fallback (`if: pageOk`). It is per state — a part has its own | a different shape |
 | A portal | Write the dialog and the toasts at the end of `<body>`, outside the router: nothing needs moving. Bound markup must be inside `<body>` | a different shape |
