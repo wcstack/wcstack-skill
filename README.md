@@ -67,7 +67,7 @@ claude plugin update wcstack-app@wcstack
 
 then `/reload-plugins` in a running session. To keep it current, turn auto-update on for the marketplace: `/plugin` → **Marketplaces** → `wcstack`. `/plugin` → **Installed** shows the version you have; the skill's `metadata.wcstack-version` says the wcstack release it describes.
 
-To pin the skill to the release your pages use, add the marketplace at that tag: `/plugin marketplace add wcstack/wcstack-skill#v4.31.0`. An article or a tutorial written against one release can tell its readers to do this, so they get the skill it was written with.
+To pin the skill to the release your pages use, add the marketplace at that tag: `/plugin marketplace add wcstack/wcstack-skill#v4.32.0`. An article or a tutorial written against one release can tell its readers to do this, so they get the skill it was written with.
 
 ### Manual copy
 
@@ -78,7 +78,7 @@ Copy `skills/wcstack-app/` into:
 
 ## Versioning
 
-The plugin version tracks the wcstack release the content was last verified against (currently **4.31.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
+The plugin version tracks the wcstack release the content was last verified against (currently **4.32.0**). The `SKILL.md` frontmatter carries the same stamp as `metadata.wcstack-version`.
 
 Pages that must stay on wcstack 3.x pin the major in their CDN URLs (`https://esm.run/@wcstack/state@3/auto`) and use a skill release verified against 3.5.4 (the `v3.5.4` tag of this repository).
 

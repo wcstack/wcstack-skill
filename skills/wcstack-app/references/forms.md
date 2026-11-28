@@ -1,6 +1,6 @@
 # Forms — a page that is mostly a form
 
-Sources: `docs/forms.md` (+ `.ja.md`), `packages/state/README.md` "Forms: what happens outside the `input` event" and "Two-Way Binding", `packages/state/src/features/forms.ts`, `docs/timing-and-firing-contract.md` §25, `packages/fetch/README.md`, `docs/seam-apps.md` (ekiden-entry). Verified against wcstack 4.31.0; every snippet here was run in Chromium.
+Sources: `docs/forms.md` (+ `.ja.md`), `packages/state/README.md` "Forms: what happens outside the `input` event" and "Two-Way Binding", `packages/state/src/features/forms.ts`, `docs/timing-and-firing-contract.md` §25, `packages/fetch/README.md`, `docs/seam-apps.md` (ekiden-entry). Verified against wcstack 4.32.0; every snippet here was run in Chromium.
 
 Read this before building an application form, an entry sheet or a wizard: text typed with an IME (Japanese, Chinese, Korean), fields that format what is typed, autofill, a reset button, rows of inputs that move, form controls of your own.
 
